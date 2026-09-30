@@ -58,3 +58,25 @@ func TestClientEncodesBooleanParametersAsStrings(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 }
+
+func TestClientEncodesIntegerArrayParametersAsCommaSeparatedStrings(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["category_ids"] != "2,8" {
+			t.Fatalf("category_ids=%#v, want string 2,8", body["category_ids"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"sql_endpoint","data":{"columns":[],"rows":[],"result":{"code":200}}}`))
+	}))
+	defer server.Close()
+
+	_, err := New(server.URL, "app", "a", "b").Call(context.Background(), http.MethodPost, "supplements", map[string]any{
+		"category_ids": []int64{2, 8},
+	})
+	if err != nil {
+		t.Fatalf("Call() error = %v", err)
+	}
+}

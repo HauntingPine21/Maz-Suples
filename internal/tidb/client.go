@@ -73,11 +73,18 @@ func (c *Client) Call(ctx context.Context, method, endpoint string, params map[s
 	} else if params != nil {
 		payloadParams := make(map[string]any, len(params))
 		for key, value := range params {
-			if boolean, ok := value.(bool); ok {
-				payloadParams[key] = strconv.FormatBool(boolean)
-				continue
+			switch typed := value.(type) {
+			case bool:
+				payloadParams[key] = strconv.FormatBool(typed)
+			case []int64:
+				items := make([]string, len(typed))
+				for i, id := range typed {
+					items[i] = strconv.FormatInt(id, 10)
+				}
+				payloadParams[key] = strings.Join(items, ",")
+			default:
+				payloadParams[key] = value
 			}
-			payloadParams[key] = value
 		}
 		payload, err := json.Marshal(payloadParams)
 		if err != nil {
