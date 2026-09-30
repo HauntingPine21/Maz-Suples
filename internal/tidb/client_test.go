@@ -2,6 +2,7 @@ package tidb
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,5 +36,25 @@ func TestClientAcceptsSuccessfulRows(t *testing.T) {
 	res, err := New(server.URL, "app", "a", "b").Call(context.Background(), http.MethodGet, "catalog", nil)
 	if err != nil || len(res.Data.Rows) != 1 {
 		t.Fatalf("res=%v err=%v", res, err)
+	}
+}
+
+func TestClientEncodesBooleanParametersAsStrings(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["active"] != "true" {
+			t.Fatalf("active=%#v, want string true", body["active"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"type":"sql_endpoint","data":{"columns":[],"rows":[],"result":{"code":200}}}`))
+	}))
+	defer server.Close()
+
+	_, err := New(server.URL, "app", "a", "b").Call(context.Background(), http.MethodPost, "users", map[string]any{"active": true})
+	if err != nil {
+		t.Fatalf("Call() error = %v", err)
 	}
 }

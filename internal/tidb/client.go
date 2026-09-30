@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -70,7 +71,15 @@ func (c *Client) Call(ctx context.Context, method, endpoint string, params map[s
 			u += "?" + encoded
 		}
 	} else if params != nil {
-		payload, err := json.Marshal(params)
+		payloadParams := make(map[string]any, len(params))
+		for key, value := range params {
+			if boolean, ok := value.(bool); ok {
+				payloadParams[key] = strconv.FormatBool(boolean)
+				continue
+			}
+			payloadParams[key] = value
+		}
+		payload, err := json.Marshal(payloadParams)
 		if err != nil {
 			return Response{}, err
 		}
