@@ -1,0 +1,917 @@
+AUDITORÍA TÉCNICA INTEGRAL — MAZ-SUPLEMENTOS
+============================================================
+
+Fecha de auditoría: 30 de septiembre de 2026
+Repositorio: https://github.com/HauntingPine21/Maz-Suples
+Rama auditada: master
+Commit auditado: dff2825e7ba90fc6068c5b23ce17975b7739f9b5
+Estado: repositorio limpio, sincronizado y sin cambios pendientes.
+
+
+1. RESULTADO EJECUTIVO
+============================================================
+
+Maz-Suplementos es una aplicación web funcional para administrar un
+catálogo de suplementos, inventario, pedidos, usuarios y respaldos. Está
+construida con un frontend web sin frameworks, un backend en Go y TiDB
+Cloud Data Service como capa de acceso a la base de datos.
+
+Resultado general: APROBADA CON OBSERVACIONES.
+
+La aplicación:
+
+- Compila correctamente.
+- Supera todas las pruebas automatizadas existentes.
+- Pasa go vet, formato Go y validación sintáctica de JavaScript.
+- Se comunica correctamente con TiDB Data Service.
+- Implementa autenticación, sesiones, CSRF y control de acceso por roles.
+- Mantiene las credenciales de TiDB únicamente en el servidor.
+- Genera respaldos descargables en formato .sql.
+- Conserva la sesión al hacer clic en el título y volver al inicio.
+- Está sincronizada con el repositorio remoto.
+- No contiene credenciales conocidas dentro de los archivos rastreados
+  ni en el historial Git revisado.
+
+Es adecuada para entrega académica, demostración y uso interno controlado.
+Antes de considerarla preparada para producción pública deben atenderse
+aspectos como despliegue HTTPS, rotación de secretos, respaldos
+transaccionales, auditoría persistente, integración continua y limitación
+distribuida de solicitudes.
+
+No se encontraron defectos críticos o altos durante esta revisión.
+
+
+2. DESCRIPCIÓN DEL SISTEMA
+============================================================
+
+Maz-Suplementos permite:
+
+- Consultar suplementos públicos.
+- Buscar productos por nombre o marca.
+- Filtrar por precio, existencia, categoría, objetivo e ingrediente.
+- Consultar los detalles de un suplemento.
+- Mantener un carrito local.
+- Registrar pedidos.
+- Administrar suplementos e inventario.
+- Administrar categorías, objetivos e ingredientes.
+- Consultar y actualizar el estado de los pedidos.
+- Crear y administrar usuarios con distintos roles.
+- Desactivar usuarios sin eliminarlos físicamente.
+- Descargar un respaldo SQL desde el navegador.
+- Mantener sesiones protegidas con cookies y CSRF.
+
+No incluye actualmente:
+
+- Pasarela de pagos.
+- Facturación fiscal.
+- Integración con ERP, CRM o paqueterías.
+- Recuperación automática de contraseña por correo.
+- Bitácora histórica completa de modificaciones.
+- Despliegue productivo administrado.
+- Restauración automática de respaldos desde la interfaz.
+
+
+3. ARQUITECTURA
+============================================================
+
+Navegador
+   |
+   | HTTP/HTTPS, JSON y cookies
+   v
+Servidor Go / BFF
+   |
+   | HTTPS y Basic Authentication
+   v
+TiDB Cloud Data Service
+   |
+   | SQL parametrizado
+   v
+Base de datos TiDB
+
+El navegador nunca se conecta directamente a TiDB ni conoce sus
+credenciales.
+
+El backend funciona como Backend for Frontend y se encarga de:
+
+- Autenticar al usuario.
+- Administrar sesiones.
+- Validar CSRF.
+- Verificar roles.
+- Validar entradas.
+- Limitar solicitudes sensibles.
+- Llamar a endpoints predefinidos de TiDB Data Service.
+- Normalizar errores.
+- Servir el frontend.
+- Construir y entregar respaldos SQL.
+
+Tecnologías principales:
+
+- Frontend: HTML5, CSS y JavaScript ES Modules.
+- Backend: Go 1.24.
+- Base de datos: TiDB Cloud.
+- Acceso a datos: TiDB Cloud Data Service.
+- Contraseñas: bcrypt.
+- Sesiones: tokens criptográficos y cookies.
+- Pruebas de backend: go test.
+- Pruebas de navegador: Playwright.
+- Control de versiones: Git y GitHub.
+
+Dependencia externa principal del backend:
+
+golang.org/x/crypto v0.36.0
+
+
+4. ORGANIZACIÓN DEL REPOSITORIO
+============================================================
+
+maz-suplementos/
+|-- cmd/
+|   |-- server/                 Servidor principal
+|   `-- bootstrap-admin/        Inicialización del administrador
+|-- internal/
+|   |-- config/                 Variables de entorno y configuración
+|   |-- httpapi/                API HTTP, middleware y controladores
+|   |-- models/                 Modelos internos
+|   |-- tidb/                   Cliente de TiDB Data Service
+|   `-- validation/             Validación centralizada
+|-- database/
+|   |-- schema.sql              Estructura de base de datos
+|   |-- seeds.sql               Datos iniciales
+|   `-- endpoints/              Definiciones SQL de Data Service
+|-- web/                        Frontend
+|-- scripts/
+|   |-- configure-tidb-data-service.js
+|   `-- playwright-smoke.js
+|-- Makefile
+|-- flake.nix
+|-- go.mod
+|-- go.sum
+`-- README.md
+
+El repositorio contiene 82 archivos rastreados.
+
+
+5. CONFIGURACIÓN DE TIDB CLOUD AUDITADA
+============================================================
+
+- Organización TiDB: configurada.
+- Proyecto: Maz-Suplementos.
+- Instancia: TiDB Starter.
+- Proveedor: AWS.
+- Región: us-east-1.
+- Base de datos: maz_suplementos.
+- Data App: Maz-Suplementos.
+- Data Service: operativo.
+- Clave Data API: rol ReadAndWrite.
+- Límite configurado: 100 solicitudes por minuto.
+- Expiración de clave: sin expiración.
+
+La aplicación utiliza una URL regional con el formato:
+
+https://us-east-1.data.tidbcloud.com/api/v1beta/app/{app-id}/endpoint/{ruta}
+
+TiDB Data Service se encuentra documentado por PingCAP como una
+funcionalidad Preview. Esto debe considerarse como riesgo de dependencia
+y de posibles cambios futuros del proveedor.
+
+Documentación oficial:
+https://docs.pingcap.com/tidbcloud/data-service-get-started/
+
+Estado de despliegue:
+
+- El proyecto contiene 44 definiciones de endpoints.
+- GET: 24.
+- POST: 8.
+- PUT: 6.
+- DELETE: 6.
+- En el último estado operativo verificado había 43 endpoints desplegados.
+- /users/bootstrap estaba intencionalmente fuera de línea.
+- Dicho endpoint solo debe utilizarse para crear el primer administrador.
+
+
+6. MODELO DE DATOS
+============================================================
+
+La base contiene 11 tablas.
+
+6.1 users
+------------------------------------------------------------
+
+Almacena:
+
+- Identificador.
+- Nombre de usuario único.
+- Hash bcrypt de contraseña.
+- Nombre completo.
+- Rol.
+- Estado activo/inactivo.
+- Fechas de creación y modificación.
+
+Roles admitidos:
+
+- ADMINISTRADOR
+- CAPTURISTA
+- AUDITOR
+
+Las contraseñas no se almacenan en texto plano.
+
+6.2 Catálogos
+------------------------------------------------------------
+
+Tablas:
+
+- categories
+- goals
+- ingredients
+
+Cada catálogo maneja ID, nombre único, descripción, estado activo y
+fechas de creación y actualización.
+
+6.3 supplements
+------------------------------------------------------------
+
+Almacena nombre, marca, descripción, precio, existencias, presentación,
+sabor, peso, URL de imagen, estado activo y fechas. Incluye restricciones
+para evitar precios o inventarios inválidos.
+
+6.4 Relaciones muchos-a-muchos
+------------------------------------------------------------
+
+- supplement_categories
+- supplement_goals
+- supplement_ingredients
+
+Estas tablas conectan suplementos con categorías, objetivos e
+ingredientes. Las relaciones se eliminan en cascada cuando desaparece el
+suplemento. Los catálogos están protegidos para impedir eliminaciones que
+dejen referencias inconsistentes.
+
+6.5 orders
+------------------------------------------------------------
+
+Almacena ID generado desde una clave idempotente, número de pedido MAZ,
+datos del cliente, estado, subtotal, total y fechas.
+
+Estados válidos:
+
+- PENDIENTE
+- CONFIRMADO
+- PREPARANDO
+- COMPLETADO
+- CANCELADO
+
+6.6 order_items
+------------------------------------------------------------
+
+Almacena suplemento relacionado, nombre histórico del producto, precio
+unitario, cantidad y total de la línea. La instantánea permite conservar
+el contenido histórico aunque después cambie el producto.
+
+6.7 sessions
+------------------------------------------------------------
+
+Almacena hash SHA-256 del token de sesión, hash SHA-256 del token CSRF,
+usuario, expiración y fecha de creación. Los tokens originales no se
+guardan en la base de datos.
+
+6.8 Datos iniciales
+------------------------------------------------------------
+
+El archivo de semillas es idempotente e incluye:
+
+- 8 categorías.
+- 8 objetivos.
+- 11 ingredientes.
+- 4 suplementos.
+- Sus relaciones correspondientes.
+
+
+7. DOCUMENTACIÓN DEL DATA SERVICE
+============================================================
+
+Cada endpoint de TiDB contiene una consulta SQL fija. El servidor Go
+envía exclusivamente los parámetros permitidos. Esto reduce el riesgo de
+inyección SQL, ya que no concatena directamente valores del usuario.
+
+Los parámetros se envían en:
+
+- Query string para GET y DELETE.
+- Cuerpo JSON para POST y PUT.
+
+Documentación oficial de endpoints:
+https://docs.pingcap.com/tidbcloud/data-service-manage-endpoint/
+
+7.1 Autenticación y sesiones
+------------------------------------------------------------
+
+GET    /auth/user          Parámetro: username
+GET    /sessions/current   Parámetro: token_hash
+POST   /sessions           token_hash, csrf_hash, user_id, expires_at
+DELETE /sessions           Parámetro: token_hash
+
+7.2 Catálogo público
+------------------------------------------------------------
+
+GET /catalog
+Parámetros: search, brand, min_price, max_price, in_stock, category,
+goal, ingredient.
+
+GET /catalog/categories
+Sin parámetros.
+
+GET /catalog/item
+Parámetro: id.
+
+7.3 Suplementos
+------------------------------------------------------------
+
+GET    /supplements        Parámetro: search
+GET    /supplements/item   Parámetro: id
+POST   /supplements        Datos del producto y relaciones
+PUT    /supplements/item   Datos del producto, relaciones e id
+DELETE /supplements/item   Parámetro: id
+
+Parámetros de escritura:
+
+- name
+- brand
+- description
+- price
+- stock
+- presentation
+- flavor
+- weight
+- image_url
+- active
+- category_ids
+- goal_ids
+- ingredient_ids
+- id, solamente en actualización
+
+7.4 Categorías
+------------------------------------------------------------
+
+GET    /categories
+POST   /categories         name, description, active
+PUT    /categories/item    name, description, active, id
+DELETE /categories/item    id
+
+7.5 Objetivos
+------------------------------------------------------------
+
+GET    /goals
+POST   /goals              name, description, active
+PUT    /goals/item         name, description, active, id
+DELETE /goals/item         id
+
+7.6 Ingredientes
+------------------------------------------------------------
+
+GET    /ingredients
+POST   /ingredients        name, description, active
+PUT    /ingredients/item   name, description, active, id
+DELETE /ingredients/item   id
+
+7.7 Usuarios
+------------------------------------------------------------
+
+GET    /users
+GET    /users/item         id
+POST   /users              username, password_hash, full_name, role, active
+PUT    /users/item         datos editables, password_hash, id
+DELETE /users/item         id
+POST   /users/bootstrap    username, password_hash, full_name
+
+/users/bootstrap debe permanecer fuera de línea después de crear la
+primera cuenta.
+
+7.8 Pedidos
+------------------------------------------------------------
+
+GET  /orders               status
+GET  /orders/item          id
+POST /orders               items_json, id, order_number y datos del cliente
+PUT  /orders/status        status, id
+
+7.9 Respaldos
+------------------------------------------------------------
+
+GET /backup/users
+GET /backup/categories
+GET /backup/goals
+GET /backup/ingredients
+GET /backup/supplements
+GET /backup/supplement_categories
+GET /backup/supplement_goals
+GET /backup/supplement_ingredients
+GET /backup/orders
+GET /backup/order_items
+
+7.10 Configuración técnica
+------------------------------------------------------------
+
+- Tiempo máximo: 30 segundos.
+- Límite normal: 1,000 filas.
+- Límite de respaldo: 2,000 filas por página.
+- Caché: deshabilitada.
+- Ejecución por lotes: deshabilitada.
+- Etiqueta: Default.
+- Paginación en consultas GET.
+- Listados de aplicación limitados a 200 registros por página.
+
+El cliente Go:
+
+- Usa HTTPS obligatorio.
+- Autentica mediante Basic Auth.
+- Aplica timeout de 20 segundos.
+- Limita respuestas a 4 MiB.
+- Verifica el código HTTP.
+- Verifica data.result.code dentro de la respuesta.
+- Convierte booleanos a las cadenas "true" o "false" por el
+  comportamiento observado en Data Service.
+
+Documentación oficial de claves Data API:
+https://docs.pingcap.com/tidbcloud/data-service-api-key/
+
+
+8. API HTTP DEL BACKEND
+============================================================
+
+8.1 Endpoints públicos
+------------------------------------------------------------
+
+POST /api/auth/login               Iniciar sesión
+GET  /api/catalog                  Consultar catálogo
+GET  /api/catalog/categories       Categorías públicas
+GET  /api/catalog/{id}             Detalle de producto
+POST /api/orders                   Registrar pedido público
+
+8.2 Endpoints autenticados
+------------------------------------------------------------
+
+POST /api/auth/logout              Cualquier usuario autenticado
+GET  /api/auth/me                  Cualquier usuario autenticado
+GET  /api/users                    Administrador y auditor
+GET  /api/users/{id}               Administrador y auditor
+POST/PUT/DELETE /api/users         Solo administrador
+GET  /api/supplements              Todos los roles
+POST/PUT/DELETE /api/supplements   Solo capturista
+GET  /api/categories               Todos los roles
+POST/PUT/DELETE /api/categories    Solo capturista
+GET  /api/goals                    Todos los roles
+POST/PUT/DELETE /api/goals         Solo capturista
+GET  /api/ingredients              Todos los roles
+POST/PUT/DELETE /api/ingredients   Solo capturista
+GET  /api/orders                   Todos los roles
+PUT  /api/orders/{id}/status       Solo capturista
+POST /api/backups                  Solo administrador
+
+
+9. MATRIZ DE PERMISOS
+============================================================
+
+Función                              Admin  Capturista  Auditor
+----------------------------------------------------------------
+Consultar productos                   Sí       Sí         Sí
+Consultar catálogos                   Sí       Sí         Sí
+Consultar pedidos                     Sí       Sí         Sí
+Consultar usuarios                    Sí       No         Sí
+Crear o editar usuarios               Sí       No         No
+Desactivar usuarios                   Sí       No         No
+Crear o editar suplementos            No       Sí         No
+Eliminar suplementos                  No       Sí         No
+Administrar categorías                No       Sí         No
+Administrar objetivos                 No       Sí         No
+Administrar ingredientes              No       Sí         No
+Cambiar estado de pedidos             No       Sí         No
+Descargar respaldo SQL                Sí       No         No
+
+Los permisos se protegen en el servidor y no dependen únicamente de
+ocultar botones en el frontend.
+
+Estado de usuarios verificado:
+
+- 1 administrador activo.
+- 1 capturista activo.
+- 1 auditor activo.
+- 1 auditor inactivo utilizado para diagnóstico.
+
+
+10. AUTENTICACIÓN Y SEGURIDAD
+============================================================
+
+10.1 Contraseñas
+------------------------------------------------------------
+
+- Hash bcrypt.
+- Costo predeterminado seguro de la biblioteca.
+- Longitud admitida: 10 a 72 bytes.
+- No se devuelven hashes al frontend.
+- Cambiar la contraseña invalida sesiones existentes del usuario.
+
+10.2 Sesiones
+------------------------------------------------------------
+
+- Tokens aleatorios criptográficos de 32 bytes.
+- Solo se guardan hashes SHA-256.
+- Duración predeterminada: 12 horas.
+- Intervalo configurable: 1 a 168 horas.
+- Las sesiones expiradas se purgan al crear nuevas sesiones.
+
+10.3 Cookies
+------------------------------------------------------------
+
+Cookie de sesión:
+
+- HttpOnly.
+- SameSite=Lax.
+- Path=/.
+- Secure obligatorio en producción.
+
+Cookie CSRF:
+
+- Disponible para JavaScript.
+- SameSite=Strict.
+- Validada mediante encabezado en operaciones de escritura.
+
+10.4 Protección CSRF
+------------------------------------------------------------
+
+Toda operación autenticada diferente de GET, HEAD u OPTIONS exige un
+token CSRF correcto. La comparación utiliza hashes y tiempo constante.
+
+10.5 Validación de solicitudes
+------------------------------------------------------------
+
+- Máximo de 1 MiB por cuerpo JSON.
+- Rechazo de propiedades desconocidas.
+- Rechazo de múltiples objetos JSON.
+- Límites de longitud para texto.
+- Validación de protocolos http y https para imágenes.
+- Validación estricta de roles y estados.
+- Precios e inventarios no negativos.
+- Relaciones sin IDs repetidos.
+- Pedidos de 1 a 50 líneas.
+- Cantidades de 1 a 99.
+- Claves idempotentes de 16 a 80 caracteres.
+
+10.6 Limitación de solicitudes
+------------------------------------------------------------
+
+- Inicio de sesión: 10 intentos por minuto por IP/cuenta.
+- Pedidos públicos: 5 por minuto por IP.
+
+El límite vive en memoria. Se pierde al reiniciar el servidor y no se
+comparte entre múltiples instancias.
+
+10.7 Encabezados de seguridad
+------------------------------------------------------------
+
+- Content Security Policy.
+- X-Content-Type-Options: nosniff.
+- X-Frame-Options: DENY.
+- Referrer Policy.
+- Permissions Policy.
+- Cross-Origin-Opener-Policy.
+- Cache-Control: no-store en respuestas API sensibles.
+
+10.8 Servidor HTTP
+------------------------------------------------------------
+
+- Lectura de encabezados: 5 segundos.
+- Lectura total: 15 segundos.
+- Escritura: 30 segundos.
+- Conexión inactiva: 60 segundos.
+- Encabezados máximos: 1 MiB.
+
+
+11. FLUJO DE PEDIDOS
+============================================================
+
+1. El cliente crea una clave idempotente UUID.
+2. El servidor obtiene un hash SHA-256.
+3. Se genera el ID interno y número MAZ.
+4. Se valida al cliente y cada producto.
+5. TiDB bloquea inventario mediante SELECT ... FOR UPDATE.
+6. Se comprueba que el producto esté activo y tenga existencia.
+7. Se crea el pedido.
+8. Se crean sus partidas.
+9. Se descuenta el inventario.
+10. Se confirma la transacción.
+11. Se devuelve el pedido creado.
+
+La idempotencia evita duplicar un pedido cuando el navegador reintenta
+una solicitud.
+
+Observación: el endpoint contiene múltiples sentencias SQL y control
+explícito de transacción. TiDB soporta transacciones explícitas, pero el
+flujo completo de compra no se ejecutó durante la auditoría para evitar
+modificar existencias reales. Debe agregarse una prueba controlada en una
+base separada.
+
+Referencia:
+https://docs.pingcap.com/tidbcloud/transaction-overview/
+
+
+12. SISTEMA DE RESPALDOS
+============================================================
+
+El respaldo se solicita mediante:
+
+POST /api/backups
+
+Solo el administrador puede ejecutarlo.
+
+El servidor consulta diez tablas de negocio:
+
+- Usuarios.
+- Categorías.
+- Objetivos.
+- Ingredientes.
+- Suplementos.
+- Relaciones de suplementos.
+- Pedidos.
+- Partidas de pedidos.
+
+La tabla sessions se excluye intencionalmente.
+
+Nombre del archivo:
+
+maz-suplementos-AAAA-MM-DDTHHMMSSZ.sql
+
+La respuesta incluye:
+
+- Content-Disposition: attachment.
+- Contenido SQL.
+- Hash SHA-256 del archivo.
+
+El navegador lo guarda en la carpeta de descargas configurada en la
+computadora. Ya no se genera como JSON dentro de la carpeta del proyecto.
+
+El respaldo contiene hashes bcrypt porque forman parte de la tabla de
+usuarios, pero no incluye:
+
+- Contraseñas en texto plano.
+- Clave pública de Data Service.
+- Clave privada de Data Service.
+- Tokens activos de sesión.
+
+Limitaciones:
+
+- Las tablas se descargan mediante solicitudes independientes.
+- No constituye un snapshot global transaccional.
+- Puede haber diferencias si existen escrituras concurrentes.
+- La restauración no se probó en una instancia TiDB separada durante
+  esta auditoría.
+
+
+13. VARIABLES DE ENTORNO
+============================================================
+
+APP_ENV
+Entorno, por ejemplo development o production.
+
+APP_PORT
+Puerto HTTP.
+
+TIDB_DATA_SERVICE_BASE_URL
+URL regional de Data Service.
+
+TIDB_DATA_SERVICE_APP_ID
+Identificador público del Data App.
+
+TIDB_DATA_SERVICE_PUBLIC_KEY
+Usuario de autenticación Data API.
+
+TIDB_DATA_SERVICE_PRIVATE_KEY
+Secreto de autenticación.
+
+COOKIE_SECURE
+Fuerza cookies HTTPS.
+
+SESSION_TTL_HOURS
+Duración de sesiones.
+
+Configuración local actual:
+
+APP_PORT=18080
+
+El puerto 8080 está ocupado por otro servicio local. La aplicación usa:
+
+http://127.0.0.1:18080
+
+Los secretos no deben incluirse en Git, respaldos, documentación pública
+ni capturas.
+
+
+14. ESTADO FUNCIONAL VERIFICADO
+============================================================
+
+- Suplementos: 4.
+- Categorías: 8.
+- Objetivos: 8.
+- Ingredientes: 11.
+- Relaciones suplemento-categoría: 4.
+- Relaciones suplemento-objetivo: 8.
+- Relaciones suplemento-ingrediente: 6.
+- Pedidos: 0.
+- Partidas de pedido: 0.
+- Usuarios: 4.
+
+Los endpoints de catálogo y respaldo consultados respondieron con código
+interno 200.
+
+La interfaz fue revisada en escritorio y móvil, incluyendo:
+
+- Página pública.
+- Menú.
+- Catálogo.
+- Carrito.
+- Modificación de cantidades.
+- Ventana de detalle.
+- Formulario de acceso.
+- Resolución móvil de 390 píxeles.
+- Ausencia de desbordamiento horizontal.
+- Retorno al inicio sin cerrar la sesión.
+
+
+15. PRUEBAS Y CONTROLES EJECUTADOS
+============================================================
+
+- gofmt: aprobado.
+- go vet ./...: aprobado.
+- go test ./...: aprobado.
+- go build ./...: aprobado.
+- Sintaxis de JavaScript: aprobada.
+- Prueba Playwright: aprobada.
+- Frontend local: HTTP 200.
+- Catálogo conectado a TiDB: HTTP 200.
+- Revisión de secretos rastreados: sin coincidencias.
+- Revisión del historial Git: sin coincidencias.
+- Estado Git: limpio y sincronizado al momento de la auditoría.
+
+Cobertura funcional existente:
+
+- HTTPS obligatorio para Data Service.
+- Cookies seguras en producción.
+- Matriz de permisos.
+- Protección CSRF.
+- Contraseñas bcrypt.
+- Validación de pedidos.
+- Validación de suplementos y relaciones.
+- Catálogo público.
+- Generación de respaldo SQL.
+- Encabezados de seguridad.
+- Límites de filtros.
+- Interpretación de respuestas TiDB.
+- Codificación especial de booleanos.
+- Validación de texto, URLs y enumeraciones.
+
+Herramientas especializadas no instaladas:
+
+- Gitleaks.
+- Semgrep.
+- GolangCI-Lint.
+
+La revisión de secretos se realizó mediante búsquedas manuales y del
+historial. La garantía de análisis estático especializado queda degradada
+hasta incorporar dichas herramientas.
+
+
+16. HALLAZGOS Y RIESGOS PENDIENTES
+============================================================
+
+16.1 Prioridad alta antes de producción
+------------------------------------------------------------
+
+1. Rotar la contraseña de la cuenta TiDB y la clave Data API porque se
+   compartieron durante la configuración, aunque no aparecen en Git.
+
+2. Establecer expiración periódica para la clave Data API. Actualmente
+   tiene acceso ReadAndWrite y no expira.
+
+3. Desplegar exclusivamente mediante HTTPS y activar cookies Secure.
+
+4. Mantener /users/bootstrap fuera de línea después de la inicialización.
+
+16.2 Prioridad media
+------------------------------------------------------------
+
+1. Implementar CI en GitHub Actions con formato, compilación, pruebas,
+   go vet, Gitleaks, análisis estático y Playwright.
+
+2. Implementar una bitácora persistente de auditoría con usuario, acción,
+   entidad, ID, fecha, resultado y origen.
+
+3. Mover el rate limiting a Redis, base de datos o gateway al utilizar
+   varias instancias.
+
+4. Configurar proxies confiables antes de aceptar direcciones IP
+   reenviadas.
+
+5. Crear respaldos consistentes mediante snapshot o exportación nativa.
+
+6. Probar restauraciones regularmente en una base aislada.
+
+7. Ejecutar pruebas transaccionales de pedidos en un entorno no
+   productivo.
+
+8. Supervisar cambios de TiDB Data Service por su estado Preview.
+
+16.3 Prioridad baja
+------------------------------------------------------------
+
+- Evitar registrar el nombre completo del usuario en accesos fallidos.
+- Añadir métricas y alertas.
+- Añadir identificadores de correlación por solicitud.
+- Documentar objetivos de recuperación RPO y RTO.
+- Añadir pruebas de accesibilidad automatizadas.
+- Incorporar una política formal de retención de respaldos.
+
+
+17. PROCEDIMIENTO DE INSTALACIÓN Y OPERACIÓN
+============================================================
+
+17.1 Primera configuración
+------------------------------------------------------------
+
+1. Crear el proyecto y la instancia TiDB Starter.
+2. Crear la base maz_suplementos.
+3. Ejecutar database/schema.sql.
+4. Ejecutar database/seeds.sql.
+5. Crear el Data App.
+6. Vincularlo con la fuente de datos.
+7. Crear y desplegar los endpoints de database/endpoints/.
+8. Crear una clave Data API ReadAndWrite.
+9. Completar el archivo .env.
+10. Activar temporalmente /users/bootstrap.
+11. Ejecutar el programa de inicialización del administrador.
+12. Deshabilitar /users/bootstrap.
+13. Iniciar el servidor.
+14. Confirmar acceso, roles, catálogo y respaldo.
+15. Rotar y documentar la custodia de credenciales.
+
+17.2 Inicio local
+------------------------------------------------------------
+
+go run ./cmd/server
+
+Dirección actual:
+
+http://127.0.0.1:18080
+
+17.3 Validación recomendada
+------------------------------------------------------------
+
+gofmt -l .
+go vet ./...
+go test ./...
+go build ./...
+
+
+18. CONCLUSIÓN PROFESIONAL
+============================================================
+
+Maz-Suplementos presenta una arquitectura razonable y bien separada para
+su alcance:
+
+- El frontend no tiene acceso directo a la base de datos.
+- Las credenciales permanecen en el backend.
+- Los roles se validan del lado servidor.
+- Las contraseñas están protegidas con bcrypt.
+- Las sesiones usan tokens aleatorios y hashes.
+- Las operaciones autenticadas están protegidas con CSRF.
+- El acceso SQL está contenido en endpoints parametrizados.
+- Los respaldos se entregan como archivos SQL descargables.
+- La interfaz mantiene la sesión al regresar al inicio.
+- La base, Data Service, backend y frontend están conectados y operativos.
+
+El sistema puede considerarse funcionalmente completo para el alcance
+definido y apto para entrega académica o uso interno controlado. No debe
+declararse todavía como producción empresarial sin resolver la rotación
+de secretos, CI, auditoría histórica, consistencia de respaldos, HTTPS y
+operación distribuida.
+
+
+REFERENCIAS OFICIALES
+============================================================
+
+TiDB Data Service - Primeros pasos:
+https://docs.pingcap.com/tidbcloud/data-service-get-started/
+
+Administración de endpoints:
+https://docs.pingcap.com/tidbcloud/data-service-manage-endpoint/
+
+Claves de Data API:
+https://docs.pingcap.com/tidbcloud/data-service-api-key/
+
+Administración de Data Apps:
+https://docs.pingcap.com/tidbcloud/data-service-manage-data-app/
+
+Respuestas y códigos de estado:
+https://docs.pingcap.com/tidbcloud/data-service-response-and-status-code/
+
+Transacciones de TiDB:
+https://docs.pingcap.com/tidbcloud/transaction-overview/
+
+FIN DEL DOCUMENTO

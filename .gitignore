@@ -11,3 +11,5 @@ coverage.out
 /test-artifacts/
 /.tidb-browser-profile/
 .DS_Store
+
+.vercel

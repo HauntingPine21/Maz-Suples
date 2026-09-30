@@ -1,0 +1,12 @@
+.git
+.gocache
+.gomodcache
+.tidb-browser-profile
+.vercel
+.env
+.env.*
+backups
+test-artifacts
+AUDITORIA_TECNICA_MAZ_SUPLEMENTOS.txt
+*.log
+coverage.out

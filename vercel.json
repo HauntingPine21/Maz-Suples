@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "regions": ["iad1"],
+  "functions": {
+    "api/index.go": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/", "destination": "/web/index.html" },
+    { "source": "/login.html", "destination": "/web/login.html" },
+    { "source": "/admin", "destination": "/web/admin/index.html" },
+    { "source": "/admin/", "destination": "/web/admin/index.html" },
+    { "source": "/css/:path*", "destination": "/web/css/:path*" },
+    { "source": "/js/:path*", "destination": "/web/js/:path*" },
+    { "source": "/assets/:path*", "destination": "/web/assets/:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" }
+      ]
+    }
+  ]
+}
