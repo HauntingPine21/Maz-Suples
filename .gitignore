@@ -9,4 +9,5 @@ coverage.out
 .gocache/
 .gomodcache/
 /test-artifacts/
+/.tidb-browser-profile/
 .DS_Store
