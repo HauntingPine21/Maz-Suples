@@ -1,0 +1,2 @@
+-- GET /categories; pagination enabled
+USE maz_suplementos; SELECT id,name,description,active,created_at,updated_at FROM categories ORDER BY name;

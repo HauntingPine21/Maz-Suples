@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+/bin/
+/backups/*.sql
+/backups/*.json
+*.log
+coverage.out
+.gocache/
+.gomodcache/
+/test-artifacts/
+.DS_Store
