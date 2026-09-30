@@ -1,4 +1,4 @@
--- PUT /supplements/item/{id}; id INTEGER path; remaining params as POST
+-- PUT /supplements/item; id INTEGER body; remaining params as POST
 USE maz_suplementos;
 START TRANSACTION PESSIMISTIC;
 UPDATE supplements SET name=${name},brand=${brand},description=${description},price=${price},stock=${stock},presentation=${presentation},flavor=NULLIF(${flavor},''),weight=${weight},image_url=NULLIF(${image_url},''),active=${active} WHERE id=${id};
