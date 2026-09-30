@@ -6,7 +6,7 @@
     forAll = nixpkgs.lib.genAttrs systems;
   in {
     devShells = forAll (system: let pkgs = import nixpkgs { inherit system; }; in {
-      default = pkgs.mkShell { packages = with pkgs; [ go_1_24 gnumake git ]; };
+      default = pkgs.mkShell { packages = with pkgs; [ go_1_24 gnumake git mysql80 ]; };
     });
   };
 }

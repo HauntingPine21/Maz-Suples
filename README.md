@@ -29,7 +29,12 @@ Roles estrictos:
 
 ## Requisitos y configuración
 
-TiDB Data Service está disponible para TiDB Cloud Starter en AWS. Crea primero el esquema con una conexión SQL temporal TLS, ejecuta los seeds y después configura/despliega los endpoints descritos en `database/endpoints/inventory.md`. Esto separa claramente la inicialización SQL del CRUD normal de la aplicación.
+TiDB Data Service está disponible para TiDB Cloud Starter en AWS. Crea primero el esquema con una conexión SQL temporal TLS, ejecuta los seeds y después configura/despliega los endpoints descritos en `database/endpoints/inventory.md`. Esto separa claramente la inicialización SQL del CRUD normal de la aplicación. Los comandos solicitan la contraseña de forma interactiva para no guardarla en el historial:
+
+```bash
+make db-init DB_HOST='host' DB_PORT='4000' DB_USER='usuario'
+make db-seed DB_HOST='host' DB_PORT='4000' DB_USER='usuario' DB_NAME='maz_suplementos'
+```
 
 ```bash
 cp .env.example .env
