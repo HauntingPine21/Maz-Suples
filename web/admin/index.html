@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Panel de administración de Maz-Suplementos."
+    />
+    <title>Panel — MAZ SUPLEMENTOS</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <script type="module" src="/js/admin.js"></script>
+  </head>
+  <body class="admin-page">
+    <a class="skip-link" href="#admin-main">Saltar al contenido</a>
+    <aside class="sidebar">
+      <a class="brand" href="/"><span>MAZ</span> SUPLEMENTOS</a>
+      <nav aria-label="Panel">
+        <button type="button" data-view="dashboard">Resumen</button
+        ><button type="button" data-view="supplements">Productos</button
+        ><button type="button" data-view="categories">Categorías</button
+        ><button type="button" data-view="goals">Objetivos</button
+        ><button type="button" data-view="ingredients">Ingredientes</button
+        ><button type="button" data-view="orders">Pedidos</button
+        ><button type="button" data-view="users">Usuarios</button
+        ><button type="button" data-view="backups">Respaldos</button>
+      </nav>
+      <button type="button" data-logout>Cerrar sesión</button>
+    </aside>
+    <main id="admin-main" class="admin-main">
+      <header class="admin-top">
+        <div>
+          <p class="eyebrow">PANEL DE CONTROL</p>
+          <h1 data-view-title>Resumen</h1>
+        </div>
+        <div data-user-badge></div>
+      </header>
+      <p class="status" data-admin-status role="status" aria-live="polite">
+        Cargando…
+      </p>
+      <section data-admin-content></section>
+    </main>
+    <dialog data-form-dialog aria-labelledby="form-title">
+      <button
+        class="modal-close"
+        type="button"
+        data-close-form
+        aria-label="Cerrar formulario"
+      >
+        ×
+      </button>
+      <h2 id="form-title" data-form-title>Editar</h2>
+      <p class="status" data-form-status role="status" aria-live="polite"></p>
+      <form data-resource-form></form>
+    </dialog>
+  </body>
+</html>

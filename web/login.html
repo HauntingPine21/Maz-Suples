@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Acceso al panel de Maz-Suplementos." />
+    <title>Acceso interno — MAZ SUPLEMENTOS</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <script type="module" src="/js/auth.js"></script>
+  </head>
+  <body class="auth-page">
+    <a class="skip-link" href="#login">Saltar al formulario</a>
+    <main class="auth-shell">
+      <section class="auth-brand">
+        <a class="brand" href="/"><span>MAZ</span> SUPLEMENTOS</a>
+        <p class="eyebrow">ACCESO INTERNO</p>
+        <h1>Controla el inventario. Mantén el ritmo.</h1>
+        <p>Panel seguro para administración, captura y auditoría.</p>
+      </section>
+      <section class="auth-card" id="login">
+        <a href="/">← Volver a la tienda</a>
+        <h2>Iniciar sesión</h2>
+        <p>Ingresa con tu cuenta de trabajo.</p>
+        <form data-login-form>
+          <label
+            >Usuario<input
+              name="username"
+              required
+              maxlength="64"
+              autocomplete="username" /></label
+          ><label
+            >Contraseña<input
+              name="password"
+              type="password"
+              required
+              maxlength="128"
+              autocomplete="current-password" /></label
+          ><button class="button primary wide" type="submit">
+            Entrar al panel
+          </button>
+        </form>
+        <p
+          class="status"
+          data-login-status
+          role="status"
+          aria-live="polite"
+        ></p>
+      </section>
+    </main>
+  </body>
+</html>

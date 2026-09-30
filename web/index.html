@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es-MX">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Catálogo de suplementos deportivos Maz-Suplementos."
+    />
+    <title>MAZ SUPLEMENTOS — Impulsa tu entrenamiento</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <script type="module" src="/js/catalog.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Maz Suplementos, inicio"
+        ><span>MAZ</span> SUPLEMENTOS</a
+      >
+      <button
+        class="nav-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="nav"
+      >
+        Menú
+      </button>
+      <nav id="nav" aria-label="Navegación principal">
+        <a href="#inicio">Inicio</a><a href="#productos">Productos</a
+        ><a href="#categorias">Categorías</a><a href="#nosotros">Nosotros</a>
+        <button class="cart-button" type="button" data-open-cart>
+          Carrito <span data-cart-count>0</span>
+        </button>
+        <a href="/login.html">Iniciar sesión</a>
+      </nav>
+    </header>
+    <main id="contenido">
+      <section class="hero" id="inicio">
+        <div>
+          <p class="eyebrow">ENTRENA CON PROPÓSITO</p>
+          <h1>Tu siguiente nivel empieza aquí.</h1>
+          <p>
+            Suplementos seleccionados, información clara y una compra sin
+            complicaciones.
+          </p>
+          <a class="button primary" href="#productos">Explorar productos</a>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <span>FUERZA</span><b>+1</b>
+        </div>
+      </section>
+      <section
+        class="section"
+        id="categorias"
+        aria-labelledby="categories-title"
+      >
+        <div class="section-heading">
+          <p class="eyebrow">ENCUENTRA LO TUYO</p>
+          <h2 id="categories-title">Compra por categoría</h2>
+        </div>
+        <div class="category-strip" data-categories>
+          <p>Cargando categorías…</p>
+        </div>
+      </section>
+      <section
+        class="catalog-section"
+        id="productos"
+        aria-labelledby="catalog-title"
+      >
+        <div class="section-heading">
+          <p class="eyebrow">CATÁLOGO</p>
+          <h2 id="catalog-title">Productos para cada objetivo</h2>
+        </div>
+        <form class="filters" data-filters role="search">
+          <label
+            >Buscar
+            <input
+              name="search"
+              type="search"
+              maxlength="100"
+              placeholder="Nombre o marca"
+          /></label>
+          <label
+            >Categoría
+            <select name="category">
+              <option value="">Todas</option>
+            </select></label
+          >
+          <label
+            >Disponibilidad
+            <select name="in_stock">
+              <option value="">Toda</option>
+              <option value="true">Con existencias</option>
+            </select></label
+          >
+          <button class="button dark" type="submit">Aplicar filtros</button>
+        </form>
+        <p class="status" data-status role="status" aria-live="polite">
+          Cargando productos…
+        </p>
+        <div class="product-grid" data-products></div>
+      </section>
+      <section class="benefits" id="nosotros">
+        <article>
+          <b>01</b>
+          <h2>Selección clara</h2>
+          <p>Datos útiles de presentación, contenido e ingredientes.</p>
+        </article>
+        <article>
+          <b>02</b>
+          <h2>Compra sencilla</h2>
+          <p>Un pedido directo, sin pasos ni datos innecesarios.</p>
+        </article>
+        <article>
+          <b>03</b>
+          <h2>Atención local</h2>
+          <p>Consulta disponibilidad real antes de confirmar.</p>
+        </article>
+      </section>
+    </main>
+    <dialog class="drawer" data-cart-dialog aria-labelledby="cart-title">
+      <div class="drawer-head">
+        <h2 id="cart-title">Tu carrito</h2>
+        <button type="button" data-close-cart aria-label="Cerrar carrito">
+          ×
+        </button>
+      </div>
+      <div data-cart-items></div>
+      <div class="cart-total">
+        <span>Total</span><strong data-cart-total>$0.00</strong>
+      </div>
+      <button class="button primary wide" type="button" data-checkout>
+        Continuar pedido
+      </button>
+    </dialog>
+    <dialog
+      class="product-modal"
+      data-product-dialog
+      aria-labelledby="product-title"
+    >
+      <button
+        class="modal-close"
+        type="button"
+        data-close-product
+        aria-label="Cerrar detalle"
+      >
+        ×
+      </button>
+      <h2 id="product-title" class="visually-hidden">Detalle del producto</h2>
+      <div data-product-detail></div>
+    </dialog>
+    <dialog
+      class="checkout-modal"
+      data-checkout-dialog
+      aria-labelledby="checkout-title"
+    >
+      <button
+        class="modal-close"
+        type="button"
+        data-close-checkout
+        aria-label="Cerrar checkout"
+      >
+        ×
+      </button>
+      <h2 id="checkout-title">Confirma tu pedido</h2>
+      <form data-checkout-form>
+        <label
+          >Nombre<input
+            name="customer_name"
+            required
+            maxlength="120"
+            autocomplete="name" /></label
+        ><label
+          >Teléfono<input
+            name="customer_phone"
+            required
+            maxlength="30"
+            autocomplete="tel" /></label
+        ><label
+          >Correo electrónico <span>(opcional)</span
+          ><input
+            name="customer_email"
+            type="email"
+            maxlength="160"
+            autocomplete="email"
+        /></label>
+        <div data-checkout-summary></div>
+        <button class="button primary wide" type="submit">
+          Confirmar pedido
+        </button>
+      </form>
+      <p
+        class="status"
+        data-checkout-status
+        role="status"
+        aria-live="polite"
+      ></p>
+    </dialog>
+    <footer>
+      <a class="brand" href="/"><span>MAZ</span> SUPLEMENTOS</a>
+      <p>Suplementos deportivos con información transparente.</p>
+      <small>© 2026 Maz-Suplementos. Sitio demostrativo.</small>
+    </footer>
+  </body>
+</html>
