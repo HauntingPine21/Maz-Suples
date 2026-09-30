@@ -43,6 +43,40 @@ export async function api(path, { method = "GET", body, signal } = {}) {
   }
   return payload;
 }
+export async function download(path, { method = "POST", body = {} } = {}) {
+  const headers = {
+    Accept: "application/sql",
+    "Content-Type": "application/json",
+  };
+  if (!csrfToken) csrfToken = decodeURIComponent(cookie("maz_csrf"));
+  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+  const response = await fetch(path, {
+    method,
+    headers,
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+  });
+  if (!response.ok) {
+    const payload = await response
+      .json()
+      .catch(() => ({ error: { message: "No fue posible descargar el archivo" } }));
+    const error = new Error(
+      payload.error?.message || "No fue posible descargar el archivo",
+    );
+    error.status = response.status;
+    error.code = payload.error?.code;
+    throw error;
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return {
+    blob: await response.blob(),
+    filename: (match?.[1] || "maz-suplementos.sql").replace(
+      /[^a-zA-Z0-9._-]/g,
+      "_",
+    ),
+  };
+}
 export const money = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",

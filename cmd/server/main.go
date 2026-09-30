@@ -20,7 +20,7 @@ func main() {
 	}
 	client := tidb.New(cfg.DataServiceBaseURL, cfg.DataAppID, cfg.DataAPIPublicKey, cfg.DataAPIPrivateKey)
 	web := http.FileServer(http.Dir("web"))
-	server := httpapi.New(client, web, cfg.CookieSecure, cfg.SessionTTL, "backups", logger)
+	server := httpapi.New(client, web, cfg.CookieSecure, cfg.SessionTTL, logger)
 	httpServer := &http.Server{Addr: ":" + cfg.Port, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	logger.Info("Maz-Suplementos listening", "address", httpServer.Addr, "environment", cfg.Env)
 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

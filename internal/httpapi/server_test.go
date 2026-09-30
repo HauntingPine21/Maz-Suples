@@ -7,9 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -53,7 +50,7 @@ func TestRoleMatrixDeniesWrites(t *testing.T) {
 	tests := []struct{ role, method, path, body string }{{"AUDITOR", "DELETE", "/api/supplements/1", ""}, {"CAPTURISTA", "POST", "/api/users", `{"username":"x"}`}, {"ADMINISTRADOR", "POST", "/api/supplements", `{"name":"x"}`}}
 	for _, tc := range tests {
 		t.Run(tc.role+tc.path, func(t *testing.T) {
-			s := New(&fakeDB{role: tc.role}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+			s := New(&fakeDB{role: tc.role}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			rec := request(t, s, tc.method, tc.path, tc.body, tc.role)
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -62,7 +59,7 @@ func TestRoleMatrixDeniesWrites(t *testing.T) {
 	}
 }
 func TestCSRFRequiredForAuthenticatedMutation(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	req := httptest.NewRequest("DELETE", "/api/supplements/1", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "session"})
 	rec := httptest.NewRecorder()
@@ -72,7 +69,7 @@ func TestCSRFRequiredForAuthenticatedMutation(t *testing.T) {
 	}
 }
 func TestCapturerCanCreateCatalogData(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := request(t, s, "POST", "/api/categories", `{"name":"Proteína","description":"","active":true}`, "CAPTURISTA")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -81,7 +78,7 @@ func TestCapturerCanCreateCatalogData(t *testing.T) {
 func TestLoginUsesBcryptAndSetsSecureCookieAttributes(t *testing.T) {
 	b, _ := bcrypt.GenerateFromPassword([]byte("correct horse battery"), bcrypt.MinCost)
 	db := &fakeDB{role: "AUDITOR", passwordHash: string(b)}
-	s := New(db, http.NotFoundHandler(), true, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(db, http.NotFoundHandler(), true, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"username":"ana","password":"correct horse battery"}`))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
@@ -94,7 +91,7 @@ func TestLoginUsesBcryptAndSetsSecureCookieAttributes(t *testing.T) {
 	}
 }
 func TestOrderValidationRejectsDuplicateItems(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"customer_name":"Luis","customer_phone":"6141234567","idempotency_key":"12345678-1234-1234-1234-123456789abc","items":[{"supplement_id":1,"quantity":1},{"supplement_id":1,"quantity":2}]}`
 	rec := request(t, s, "POST", "/api/orders", body, "")
 	if rec.Code != 422 {
@@ -103,7 +100,7 @@ func TestOrderValidationRejectsDuplicateItems(t *testing.T) {
 }
 
 func TestSupplementValidationRejectsFractionalStockAndDuplicateRelations(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1.5,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1,1],"goal_ids":[],"ingredient_ids":[]}`
 	rec := request(t, s, "POST", "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != 422 {
@@ -111,7 +108,7 @@ func TestSupplementValidationRejectsFractionalStockAndDuplicateRelations(t *test
 	}
 }
 func TestPublicCatalogDoesNotRequireSession(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/catalog", nil))
 	if rec.Code != 200 {
@@ -123,28 +120,27 @@ func TestPublicCatalogDoesNotRequireSession(t *testing.T) {
 	}
 }
 
-func TestBackupWritesPrivateLogicalFile(t *testing.T) {
-	dir := t.TempDir()
-	s := New(&fakeDB{role: "ADMINISTRADOR"}, http.NotFoundHandler(), false, time.Hour, dir, slog.New(slog.NewTextHandler(io.Discard, nil)))
+func TestBackupReturnsSQLDownload(t *testing.T) {
+	s := New(&fakeDB{role: "ADMINISTRADOR"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := request(t, s, "POST", "/api/backups", `{}`, "ADMINISTRADOR")
-	if rec.Code != 201 {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil || len(files) != 1 {
-		t.Fatalf("files=%v err=%v", files, err)
+	if contentType := rec.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/sql") {
+		t.Fatalf("Content-Type=%q", contentType)
 	}
-	info, err := os.Stat(files[0])
-	if err != nil {
-		t.Fatal(err)
+	if disposition := rec.Header().Get("Content-Disposition"); !strings.Contains(disposition, "attachment") || !strings.Contains(disposition, ".sql") {
+		t.Fatalf("Content-Disposition=%q", disposition)
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		t.Fatalf("backup permissions too broad: %o", info.Mode().Perm())
+	for _, expected := range []string{"CREATE DATABASE IF NOT EXISTS maz_suplementos", "START TRANSACTION", "INSERT INTO `users`", "COMMIT"} {
+		if !strings.Contains(rec.Body.String(), expected) {
+			t.Fatalf("backup missing %q", expected)
+		}
 	}
 }
 
 func TestSecurityHeadersOnFrontend(t *testing.T) {
-	s := New(&fakeDB{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Header().Get("Content-Security-Policy") == "" || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
@@ -153,7 +149,7 @@ func TestSecurityHeadersOnFrontend(t *testing.T) {
 }
 
 func TestListFiltersAreBounded(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, t.TempDir(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/catalog?page_size=10000", nil))
 	if rec.Code != 400 {

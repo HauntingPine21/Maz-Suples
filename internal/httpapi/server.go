@@ -15,8 +15,6 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,7 +35,6 @@ type Server struct {
 	web           http.Handler
 	secureCookie  bool
 	sessionTTL    time.Duration
-	backupDir     string
 	logger        *slog.Logger
 	attemptMu     sync.Mutex
 	loginAttempts map[string][]time.Time
@@ -46,8 +43,8 @@ type Server struct {
 
 type principalKey struct{}
 
-func New(db tidb.Caller, web http.Handler, secureCookie bool, ttl time.Duration, backupDir string, logger *slog.Logger) *Server {
-	return &Server{db: db, web: web, secureCookie: secureCookie, sessionTTL: ttl, backupDir: backupDir, logger: logger, loginAttempts: map[string][]time.Time{}, orderAttempts: map[string][]time.Time{}}
+func New(db tidb.Caller, web http.Handler, secureCookie bool, ttl time.Duration, logger *slog.Logger) *Server {
+	return &Server{db: db, web: web, secureCookie: secureCookie, sessionTTL: ttl, logger: logger, loginAttempts: map[string][]time.Time{}, orderAttempts: map[string][]time.Time{}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -424,7 +421,7 @@ func (s *Server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
 	tables := []string{"users", "supplements", "categories", "goals", "ingredients", "supplement_categories", "supplement_goals", "supplement_ingredients", "orders", "order_items"}
-	data := map[string]any{"format": "maz-suplementos-logical-v1", "created_at": time.Now().UTC(), "tables": map[string]any{}}
+	rowsByTable := make(map[string][]map[string]any, len(tables))
 	for _, table := range tables {
 		rows := make([]map[string]any, 0)
 		for page := 1; ; page++ {
@@ -438,21 +435,18 @@ func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-		data["tables"].(map[string]any)[table] = rows
+		rowsByTable[table] = rows
 	}
-	encoded, _ := json.MarshalIndent(data, "", "  ")
+	createdAt := time.Now().UTC()
+	encoded := encodeSQLBackup(createdAt, tables, rowsByTable)
 	sum := sha256.Sum256(encoded)
-	if err := os.MkdirAll(s.backupDir, 0700); err != nil {
-		fail(w, 500, "BACKUP_ERROR", "No fue posible crear el respaldo")
-		return
-	}
-	name := "maz-suplementos-" + time.Now().UTC().Format("2006-01-02T150405Z") + ".json"
-	path := filepath.Join(s.backupDir, name)
-	if err := os.WriteFile(path, encoded, 0600); err != nil {
-		fail(w, 500, "BACKUP_ERROR", "No fue posible escribir el respaldo")
-		return
-	}
-	writeJSON(w, 201, map[string]any{"file": name, "sha256": hex.EncodeToString(sum[:]), "tables": len(tables)})
+	name := "maz-suplementos-" + createdAt.Format("2006-01-02T150405Z") + ".sql"
+	w.Header().Set("Content-Type", "application/sql; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(encoded)))
+	w.Header().Set("X-Backup-SHA256", hex.EncodeToString(sum[:]))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(encoded)
 }
 
 func (s *Server) requireAuth(next http.Handler) http.Handler {

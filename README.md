@@ -25,7 +25,7 @@ Roles estrictos:
 - `database/schema.sql`, `database/seeds.sql`: esquema e información demo idempotente.
 - `database/endpoints`: SQL revisable e inventario de endpoints.
 - `web`: tienda, carrito, checkout y panel responsivo.
-- `backups`: respaldos lógicos locales (ignorados por Git).
+- `POST /api/backups`: genera una descarga SQL protegida para administradores.
 
 ## Requisitos y configuración
 
@@ -88,11 +88,11 @@ La documentación pública de Data Service confirma que varias sentencias se eje
 
 ## Seguridad
 
-Sesiones opacas y CSRF se generan con `crypto/rand`; en TiDB solo se guardan hashes SHA-256. Cookies `HttpOnly`, `SameSite=Lax` y `Secure` bajo HTTPS; producción falla de forma segura si `COOKIE_SECURE` no es `true`. El token CSRF usa cookie `SameSite=Strict` y cabecera. Hay CSP sin scripts inline, límites de cuerpo y cabeceras, timeouts, rate limit de login por IP y cuenta, validaciones cerradas, bcrypt y autorización centralizada. Cambiar una contraseña revoca las sesiones activas. `.env` y `backups/` están ignorados.
+Sesiones opacas y CSRF se generan con `crypto/rand`; en TiDB solo se guardan hashes SHA-256. Cookies `HttpOnly`, `SameSite=Lax` y `Secure` bajo HTTPS; producción falla de forma segura si `COOKIE_SECURE` no es `true`. El token CSRF usa cookie `SameSite=Strict` y cabecera. Hay CSP sin scripts inline, límites de cuerpo y cabeceras, timeouts, rate limit de login por IP y cuenta, validaciones cerradas, bcrypt y autorización centralizada. Cambiar una contraseña revoca las sesiones activas. `.env` y los respaldos locales antiguos están ignorados.
 
 ## Respaldos
 
-Un administrador usa el panel o `POST /api/backups`. El servidor pagina cada tabla, genera `backups/maz-suplementos-<fecha>.json` con permisos restrictivos y devuelve SHA-256. No incluye sesiones ni secretos. Al consultar tablas en peticiones separadas no se puede afirmar un snapshot global consistente; esta limitación está documentada deliberadamente.
+Un administrador usa el panel o `POST /api/backups`. El servidor pagina cada tabla y responde con `maz-suplementos-<fecha>.sql` como archivo adjunto; el navegador lo guarda en la carpeta de descargas configurada por el usuario. El archivo incluye el esquema y los datos, pero no sesiones ni secretos. Al consultar tablas en peticiones separadas no se puede afirmar un snapshot global consistente; esta limitación está documentada deliberadamente.
 
 ## Verificación
 

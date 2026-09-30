@@ -1,4 +1,4 @@
-import { api, el, money, safeImage } from "./api.js";
+import { api, el, money, safeImage } from "./api.js?v=20260930-downloads";
 import * as cart from "./cart.js";
 const productsEl = document.querySelector("[data-products]"),
   statusEl = document.querySelector("[data-status]"),
@@ -6,6 +6,17 @@ const productsEl = document.querySelector("[data-products]"),
 const cartDialog = document.querySelector("[data-cart-dialog]"),
   productDialog = document.querySelector("[data-product-dialog]"),
   checkoutDialog = document.querySelector("[data-checkout-dialog]");
+const authLink = document.querySelector("[data-auth-link]");
+async function syncAuthLink() {
+  if (!authLink) return;
+  try {
+    await api("/api/auth/me");
+    authLink.textContent = "Volver al panel";
+    authLink.href = "/admin/";
+  } catch (error) {
+    if (error.status !== 401) console.warn("No fue posible comprobar la sesión");
+  }
+}
 document.querySelector(".nav-toggle")?.addEventListener("click", (event) => {
   const nav = document.querySelector("#nav");
   const open = nav.classList.toggle("open");
@@ -244,3 +255,4 @@ document
   });
 loadCategories();
 loadProducts();
+syncAuthLink();

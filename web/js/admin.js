@@ -1,4 +1,11 @@
-import { api, dateTime, el, money, setCSRF } from "./api.js";
+import {
+  api,
+  dateTime,
+  download,
+  el,
+  money,
+  setCSRF,
+} from "./api.js?v=20260930-downloads";
 const content = document.querySelector("[data-admin-content]"),
   status = document.querySelector("[data-admin-status]"),
   title = document.querySelector("[data-view-title]"),
@@ -436,7 +443,7 @@ function backups() {
   panel.append(
     el("h2", { text: "Respaldo lógico" }),
     el("p", {
-      text: "Exporta esquema y datos de la aplicación a un archivo JSON local con suma SHA-256.",
+      text: "Descarga el esquema y los datos de la aplicación como un archivo SQL en tu computadora.",
     }),
   );
   const button = el("button", {
@@ -448,9 +455,18 @@ function backups() {
     button.disabled = true;
     setStatus("Generando respaldo paginado…");
     try {
-      const result = await api("/api/backups", { method: "POST", body: {} });
+      const result = await download("/api/backups");
+      const url = URL.createObjectURL(result.blob);
+      const link = el("a", {
+        attrs: { href: url, download: result.filename },
+      });
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setStatus(
-        `Respaldo ${result.file} creado. SHA-256: ${result.sha256}`,
+        `Descarga iniciada: ${result.filename}`,
         false,
         true,
       );
