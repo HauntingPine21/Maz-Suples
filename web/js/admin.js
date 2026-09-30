@@ -297,8 +297,18 @@ function openForm(resource, row = {}) {
     let input;
     if (type === "select") {
       input = el("select", { attrs: { name: f } });
-      ["ADMINISTRADOR", "CAPTURISTA", "AUDITOR"].forEach((v) =>
-        input.append(el("option", { text: v, attrs: { value: v } })),
+      input.append(
+        el("option", {
+          text: "Selecciona un rol",
+          attrs: { value: "", disabled: "" },
+        }),
+      );
+      [
+        ["ADMINISTRADOR", "Administrador — usuarios y respaldos"],
+        ["CAPTURISTA", "Capturista — productos, inventario y pedidos"],
+        ["AUDITOR", "Auditor — solo lectura"],
+      ].forEach(([value, text]) =>
+        input.append(el("option", { text, attrs: { value } })),
       );
     } else if (type === "textarea")
       input = el("textarea", {
