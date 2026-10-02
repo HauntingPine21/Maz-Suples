@@ -12,8 +12,7 @@ const content = document.querySelector("[data-admin-content]"),
   dialog = document.querySelector("[data-form-dialog]"),
   formStatus = document.querySelector("[data-form-status]"),
   form = document.querySelector("[data-resource-form]");
-let user,
-  currentView = "dashboard";
+let user;
 const labels = {
   dashboard: "Resumen",
   supplements: "Productos",
@@ -76,7 +75,6 @@ async function init() {
   }
 }
 async function show(view) {
-  currentView = view;
   title.textContent = labels[view] || view;
   document
     .querySelectorAll("[data-view]")

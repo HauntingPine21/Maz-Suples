@@ -145,7 +145,8 @@ a {
 }
 .section .eyebrow,
 .catalog-section .eyebrow,
-.admin-top .eyebrow {
+.admin-top .eyebrow,
+.product-detail .eyebrow {
   color: var(--accent-text);
 }
 .hero-art {

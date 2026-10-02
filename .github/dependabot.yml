@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Chihuahua
+    cooldown:
+      default-days: 3
+      include: ["*"]
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:15"
+      timezone: America/Chihuahua
+    cooldown:
+      default-days: 3
+      include: ["*"]
+    groups:
+      frontend-tooling:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:30"
+      timezone: America/Chihuahua
+    cooldown:
+      default-days: 3
+      include: ["*"]
+    groups:
+      github-actions:
+        patterns: ["*"]

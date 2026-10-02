@@ -54,6 +54,13 @@ const products = [
     const page = await browser.newPage({
       viewport: { width: 1440, height: 900 },
     });
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "UNAUTHORIZED", message: "Sin sesión de prueba" } }),
+      }),
+    );
     await page.route("**/api/catalog**", async (route) => {
       const url = new URL(route.request().url());
       let body = products;
@@ -92,7 +99,7 @@ const products = [
     const quantity = page.getByRole("spinbutton", { name: /Cantidad de Maz Creatine/ });
     await quantity.fill("2");
     await quantity.press("Tab");
-    if (!(await quantity.evaluate(node => node === document.activeElement))) throw new Error("El foco se perdió al cambiar la cantidad del carrito");
+    if (!(await quantity.evaluate((node) => node === globalThis.document.activeElement))) throw new Error("El foco se perdió al cambiar la cantidad del carrito");
     await page.screenshot({
       path: path.join(artifacts, "store-desktop.png"),
       fullPage: true,
@@ -105,8 +112,8 @@ const products = [
     await page.goto(baseURL);
     const overflow = await page.evaluate(
       () =>
-        document.documentElement.scrollWidth >
-        document.documentElement.clientWidth,
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.document.documentElement.clientWidth,
     );
     if (overflow)
       throw new Error("La portada tiene desplazamiento horizontal en móvil");

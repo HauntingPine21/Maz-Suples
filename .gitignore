@@ -2,10 +2,13 @@
 .env.*
 !.env.example
 /bin/
+/node_modules/
 /backups/*.sql
 /backups/*.json
 *.log
 coverage.out
+/coverage
+sbom-*.json
 .gocache/
 .gomodcache/
 /test-artifacts/

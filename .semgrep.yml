@@ -1,0 +1,30 @@
+rules:
+  - id: javascript-eval
+    message: No se permite ejecutar código dinámico con eval.
+    severity: ERROR
+    languages: [javascript]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: javascript-unsanitized-inner-html
+    message: Revisa la escritura directa de HTML antes de publicarla.
+    severity: ERROR
+    languages: [javascript]
+    pattern: $ELEMENT.innerHTML = $VALUE
+
+  - id: go-insecure-tls
+    message: No se permite desactivar la validación TLS.
+    severity: ERROR
+    languages: [go]
+    pattern: |
+      &tls.Config{..., InsecureSkipVerify: true, ...}
+
+  - id: hardcoded-tidb-private-key
+    message: Una clave privada de TiDB no debe estar escrita en el repositorio.
+    severity: ERROR
+    languages: [generic]
+    pattern-regex: '(?i)TIDB_DATA_API_PRIVATE_KEY\s*=\s*[A-Za-z0-9_-]{12,}'
+    paths:
+      exclude:
+        - .env.example

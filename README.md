@@ -94,16 +94,37 @@ Sesiones opacas y CSRF se generan con `crypto/rand`; en TiDB solo se guardan has
 
 Un administrador usa el panel o `POST /api/backups`. El servidor pagina cada tabla y responde con `maz-suplementos-<fecha>.sql` como archivo adjunto; el navegador lo guarda en la carpeta de descargas configurada por el usuario. El archivo incluye el esquema y los datos, pero no sesiones ni secretos. Al consultar tablas en peticiones separadas no se puede afirmar un snapshot global consistente; esta limitación está documentada deliberadamente.
 
-## Verificación
+## Verificación local
+
+El repositorio fija Node.js 24.7.0 y npm 11.5.1 para las herramientas de calidad. Instala las dependencias reproducibles y ejecuta la verificación principal:
 
 ```bash
-make fmt
-make vet
-make test
-make build
+npm ci
+make verify
 ```
 
-Las pruebas cubren bcrypt/login, cookies, CSRF, matriz de roles, validación, pedidos y el contrato del cliente Data Service, incluido el error interno dentro de respuestas HTTP 200.
+Para las pruebas del navegador, inicia la aplicación en `http://127.0.0.1:8181` y ejecuta:
+
+```bash
+npx playwright install chromium
+make test-e2e
+```
+
+Las pruebas cubren bcrypt/login, cookies, CSRF, matriz de roles, validación, pedidos, creación de suplementos con sus relaciones y el contrato del cliente Data Service, incluido el error interno dentro de respuestas HTTP 200. La cobertura Go tiene un mínimo obligatorio de 50%; Axe bloquea violaciones de accesibilidad serias o críticas y el frontend mantiene un presupuesto comprimido de 170 KiB.
+
+## Integración continua y mantenimiento
+
+Cada cambio enviado a `master` o propuesto mediante pull request ejecuta:
+
+- formato, análisis estático, `go vet`, pruebas con detector de carreras y cobertura;
+- compilación, presupuesto de tamaño y política de licencias;
+- recorridos Playwright y cinco revisiones automáticas WCAG con Axe;
+- detección de secretos, vulnerabilidades Go alcanzables y reglas Semgrep;
+- CodeQL para Go y JavaScript, además de SBOM CycloneDX para ambos ecosistemas.
+
+Dependabot revisa semanalmente módulos Go, herramientas npm y GitHub Actions con un periodo de espera de tres días. Las acciones de CI están fijadas por SHA. Los cambios en autenticación, permisos, configuración de despliegue, esquema, workflows y archivos de dependencias tienen propietario explícito en `.github/CODEOWNERS`.
+
+Antes de publicar producción, verifica que Vercel conserve todas las variables indicadas arriba y que `COOKIE_SECURE=true`. Los flujos E2E de CI usan respuestas controladas y no escriben en TiDB; las comprobaciones contra datos reales deben realizarse deliberadamente con una cuenta de prueba.
 
 ## Referencias técnicas verificadas
 

@@ -1,0 +1,35 @@
+{
+  "name": "maz-suplementos-quality",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling de calidad y pruebas de Maz-Suplementos",
+  "engines": {
+    "node": ">=24.7.0 <25",
+    "npm": ">=11.5.1 <12"
+  },
+  "packageManager": "npm@11.5.1",
+  "browserslist": [
+    "baseline widely available"
+  ],
+  "scripts": {
+    "preinstall": "node scripts/enforce-package-manager.js",
+    "lint": "npm run lint:js && npm run lint:css",
+    "lint:js": "eslint web/js scripts",
+    "lint:css": "stylelint \"web/css/**/*.css\"",
+    "test:e2e": "node scripts/playwright-smoke.js",
+    "test:a11y": "node scripts/axe-smoke.js",
+    "check:coverage": "node scripts/check-coverage.js coverage.out 50",
+    "check:size": "node scripts/check-web-budget.js",
+    "check:licenses": "license-checker-rseidelsohn --summary --excludePrivatePackages --onlyAllow \"MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0;CC-BY-3.0;CC-BY-4.0;MPL-2.0;Python-2.0;BlueOak-1.0.0\""
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "globals": "17.13.0",
+    "license-checker-rseidelsohn": "5.0.1",
+    "playwright": "1.63.0",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0"
+  }
+}

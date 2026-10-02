@@ -3,6 +3,7 @@
 .gomodcache
 .tidb-browser-profile
 .vercel
+node_modules
 .env
 .env.*
 backups

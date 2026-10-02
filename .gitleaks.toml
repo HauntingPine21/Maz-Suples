@@ -1,0 +1,4 @@
+title = "Maz-Suplementos secret scanning"
+
+[extend]
+useDefault = true

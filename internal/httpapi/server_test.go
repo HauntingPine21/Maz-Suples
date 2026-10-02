@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,11 +19,13 @@ import (
 type fakeDB struct {
 	role         string
 	calls        []string
+	params       []map[string]any
 	passwordHash string
 }
 
 func (f *fakeDB) Call(_ context.Context, method, path string, p map[string]any) (tidb.Response, error) {
 	f.calls = append(f.calls, method+" "+path)
+	f.params = append(f.params, p)
 	rows := []map[string]any{}
 	switch path {
 	case "sessions/current":
@@ -73,6 +76,26 @@ func TestCapturerCanCreateCatalogData(t *testing.T) {
 	rec := request(t, s, "POST", "/api/categories", `{"name":"Proteína","description":"","active":true}`, "CAPTURISTA")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCapturerCanCreateSupplementWithRelations(t *testing.T) {
+	db := &fakeDB{role: "CAPTURISTA"}
+	s := New(db, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	body := `{"name":"Creatina","brand":"Maz","description":"Producto de prueba","price":449,"stock":10,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[2],"goal_ids":[2,8],"ingredient_ids":[1]}`
+	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	params := db.params[len(db.params)-1]
+	for field, want := range map[string][]int64{
+		"category_ids":   {2},
+		"goal_ids":       {2, 8},
+		"ingredient_ids": {1},
+	} {
+		if got, ok := params[field].([]int64); !ok || !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s=%#v, want %#v", field, params[field], want)
+		}
 	}
 }
 func TestLoginUsesBcryptAndSetsSecureCookieAttributes(t *testing.T) {
