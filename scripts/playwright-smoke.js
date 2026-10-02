@@ -19,8 +19,6 @@ const products = [
     flavor: "Sin sabor",
     weight: "300 g",
     categories: [{ name: "Creatina" }],
-    goals: [{ name: "Fuerza" }],
-    ingredients: [{ name: "Creatina monohidratada" }],
   },
   {
     id: 2,
@@ -88,7 +86,7 @@ const products = [
       .getByRole("heading", { name: "Tu siguiente nivel empieza aquí." })
       .waitFor();
     await page
-      .getByRole("heading", { name: "Productos para cada objetivo" })
+      .getByRole("heading", { name: "Productos para tu entrenamiento" })
       .waitFor();
     await page
       .getByRole("heading", { name: "Maz Creatine 300 g", exact: true })

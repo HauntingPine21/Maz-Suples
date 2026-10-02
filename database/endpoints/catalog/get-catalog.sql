@@ -1,4 +1,4 @@
--- GET /catalog; params: search STRING='', category STRING='', brand STRING='', goal STRING='', ingredient STRING='', min_price NUMBER=0, max_price NUMBER=99999999, in_stock STRING=''
+-- GET /catalog; params: search STRING='', category STRING='', brand STRING='', min_price NUMBER=0, max_price NUMBER=99999999, in_stock STRING=''
 USE maz_suplementos;
 SELECT s.id,s.name,s.brand,s.description,s.price,s.stock,s.presentation,s.flavor,s.weight,s.image_url,s.active,s.created_at,s.updated_at
 FROM supplements s
@@ -8,6 +8,4 @@ WHERE s.active=TRUE
   AND s.price BETWEEN ${min_price} AND ${max_price}
   AND (${in_stock}='' OR ${in_stock}<>'true' OR s.stock>0)
   AND (${category}='' OR EXISTS (SELECT 1 FROM supplement_categories sc JOIN categories c ON c.id=sc.category_id WHERE sc.supplement_id=s.id AND c.name=${category}))
-  AND (${goal}='' OR EXISTS (SELECT 1 FROM supplement_goals sg JOIN goals g ON g.id=sg.goal_id WHERE sg.supplement_id=s.id AND g.name=${goal}))
-  AND (${ingredient}='' OR EXISTS (SELECT 1 FROM supplement_ingredients si JOIN ingredients i ON i.id=si.ingredient_id WHERE si.supplement_id=s.id AND i.name=${ingredient}))
 ORDER BY s.name;

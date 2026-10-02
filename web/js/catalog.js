@@ -175,7 +175,7 @@ async function showProduct(id) {
         text: `Presentación: ${p.presentation || "—"} · Sabor: ${p.flavor || "—"} · Contenido: ${p.weight || "—"}`,
       }),
     );
-    for (const field of ["categories", "goals", "ingredients"]) {
+    for (const field of ["categories"]) {
       const list = parseList(p[field]);
       if (list.length) {
         const tags = el("div", { className: "tag-list" });

@@ -14,8 +14,6 @@ const products = [
     flavor: "Sin sabor",
     weight: "300 g",
     categories: [{ name: "Creatina" }],
-    goals: [{ name: "Fuerza" }],
-    ingredients: [{ name: "Creatina monohidratada" }],
   },
 ];
 

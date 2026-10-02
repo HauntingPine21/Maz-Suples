@@ -39,7 +39,8 @@ module.exports = async function configure({ chromium }) {
           ...options,
           headers: { "content-type": "application/json", ...(options.headers || {}) },
         });
-        const json = await response.json();
+        const text = await response.text();
+        const json = text ? JSON.parse(text) : {};
         if (!response.ok || (json.code && json.code !== 200)) {
           throw new Error(`${response.status}: ${json.message || "Error de TiDB Cloud"}`);
         }
@@ -55,7 +56,7 @@ module.exports = async function configure({ chromium }) {
     ]));
 
     const typeFor = (name, route) => {
-      if (["category_ids", "goal_ids", "ingredient_ids"].includes(name)) return "array";
+      if (name === "category_ids") return "array";
       if (name === "active") return "boolean";
       if (["price", "min_price", "max_price"].includes(name)) return "number";
       if (["user_id", "stock"].includes(name)) return "integer";
@@ -65,13 +66,27 @@ module.exports = async function configure({ chromium }) {
 
     const defaultFor = (name, type) => {
       if (name === "max_price") return "99999999";
-      if (["search", "category", "brand", "goal", "ingredient", "in_stock", "status", "password_hash"].includes(name)) return "";
+      if (["search", "category", "brand", "in_stock", "status", "password_hash"].includes(name)) return "";
       if (type === "number" || type === "integer") return "0";
       if (type === "boolean") return "false";
       if (type === "array") return "";
       return "";
     };
 
+    const retired = new Set([
+      "GET:/goals",
+      "POST:/goals",
+      "PUT:/goals/item",
+      "DELETE:/goals/item",
+      "GET:/ingredients",
+      "POST:/ingredients",
+      "PUT:/ingredients/item",
+      "DELETE:/ingredients/item",
+      "GET:/backup/goals",
+      "GET:/backup/ingredients",
+      "GET:/backup/supplement_goals",
+      "GET:/backup/supplement_ingredients",
+    ]);
     const configured = [];
     for (const file of files.sort()) {
       const sql = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
@@ -79,6 +94,7 @@ module.exports = async function configure({ chromium }) {
       const match = header.match(/^--\s+(GET|POST|PUT|DELETE)\s+(\/[^;\s]+)/);
       if (!match) throw new Error(`Encabezado inválido: ${file}`);
       const [, method, route] = match;
+      if (route === "/users/bootstrap") continue;
       const placeholders = [...new Set([...sql.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((m) => m[1]))];
       const args = placeholders.map((name) => {
         const type = typeFor(name, route);
@@ -143,7 +159,18 @@ module.exports = async function configure({ chromium }) {
       configured.push({ id: summary.id, method, route, args: args.length, pagination });
     }
 
-    console.log(JSON.stringify({ configured: configured.length, endpoints: configured }, null, 2));
+    // Retire obsolete endpoints only after every surviving endpoint has been
+    // updated successfully, so a partial synchronization cannot remove the
+    // old API before the replacement configuration is ready.
+    const removed = [];
+    for (const key of retired) {
+      const summary = byKey.get(key);
+      if (!summary) continue;
+      await request(`${apiBase}/${summary.id}`, { method: "DELETE" });
+      removed.push({ id: summary.id, key });
+    }
+
+    console.log(JSON.stringify({ configured: configured.length, removed, endpoints: configured }, null, 2));
   } finally {
     await browser.close();
   }
