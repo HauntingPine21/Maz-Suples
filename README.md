@@ -13,7 +13,7 @@ Las credenciales de TiDB nunca llegan al navegador. Go usa Basic Authentication 
 Roles estrictos:
 
 - `ADMINISTRADOR`: usuarios, respaldos y lectura. No modifica catálogo.
-- `CAPTURISTA`: suplementos, catálogos y estado de pedidos. No administra usuarios ni respaldos.
+- `CAPTURISTA`: suplementos, categorías y estado de pedidos. No administra usuarios ni respaldos.
 - `AUDITOR`: lectura exclusivamente.
 
 ## Estructura
@@ -22,7 +22,7 @@ Roles estrictos:
 - `cmd/bootstrap-admin`: alta segura del primer administrador.
 - `internal/httpapi`: rutas, sesiones, CSRF, permisos y respaldos.
 - `internal/tidb`: cliente central de Data Service.
-- `database/schema.sql`, `database/seeds.sql`: esquema e información demo idempotente.
+- `database/schema.sql`, `database/seeds.sql`: esquema e información demo idempotente. El catálogo relaciona productos únicamente con categorías.
 - `database/endpoints`: SQL revisable e inventario de endpoints.
 - `web`: tienda, carrito, checkout y panel responsivo.
 - `POST /api/backups`: genera una descarga SQL protegida para administradores.

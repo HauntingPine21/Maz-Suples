@@ -48,12 +48,12 @@ Maz-Suplementos permite:
 
 - Consultar suplementos públicos.
 - Buscar productos por nombre o marca.
-- Filtrar por precio, existencia, categoría, objetivo e ingrediente.
+- Filtrar por precio, existencia y categoría.
 - Consultar los detalles de un suplemento.
 - Mantener un carrito local.
 - Registrar pedidos.
 - Administrar suplementos e inventario.
-- Administrar categorías, objetivos e ingredientes.
+- Administrar categorías.
 - Consultar y actualizar el estado de los pedidos.
 - Crear y administrar usuarios con distintos roles.
 - Desactivar usuarios sin eliminarlos físicamente.
@@ -179,12 +179,12 @@ https://docs.pingcap.com/tidbcloud/data-service-get-started/
 
 Estado de despliegue:
 
-- El proyecto contiene 44 definiciones de endpoints.
-- GET: 24.
-- POST: 8.
-- PUT: 6.
-- DELETE: 6.
-- En el último estado operativo verificado había 43 endpoints desplegados.
+- El proyecto contiene 32 definiciones de endpoints.
+- GET: 18.
+- POST: 6.
+- PUT: 4.
+- DELETE: 4.
+- El sincronizador despliega 31 endpoints; excluye /users/bootstrap.
 - /users/bootstrap estaba intencionalmente fuera de línea.
 - Dicho endpoint solo debe utilizarse para crear el primer administrador.
 
@@ -192,7 +192,7 @@ Estado de despliegue:
 6. MODELO DE DATOS
 ============================================================
 
-La base contiene 11 tablas.
+La base contiene 7 tablas.
 
 6.1 users
 ------------------------------------------------------------
@@ -218,13 +218,7 @@ Las contraseñas no se almacenan en texto plano.
 6.2 Catálogos
 ------------------------------------------------------------
 
-Tablas:
-
-- categories
-- goals
-- ingredients
-
-Cada catálogo maneja ID, nombre único, descripción, estado activo y
+La tabla categories maneja ID, nombre único, descripción, estado activo y
 fechas de creación y actualización.
 
 6.3 supplements
@@ -238,13 +232,10 @@ para evitar precios o inventarios inválidos.
 ------------------------------------------------------------
 
 - supplement_categories
-- supplement_goals
-- supplement_ingredients
 
-Estas tablas conectan suplementos con categorías, objetivos e
-ingredientes. Las relaciones se eliminan en cascada cuando desaparece el
-suplemento. Los catálogos están protegidos para impedir eliminaciones que
-dejen referencias inconsistentes.
+Esta tabla conecta suplementos con categorías. Las relaciones se eliminan
+en cascada cuando desaparece el suplemento. El catálogo está protegido
+para impedir eliminaciones que dejen referencias inconsistentes.
 
 6.5 orders
 ------------------------------------------------------------
@@ -280,8 +271,6 @@ guardan en la base de datos.
 El archivo de semillas es idempotente e incluye:
 
 - 8 categorías.
-- 8 objetivos.
-- 11 ingredientes.
 - 4 suplementos.
 - Sus relaciones correspondientes.
 
@@ -313,8 +302,7 @@ DELETE /sessions           Parámetro: token_hash
 ------------------------------------------------------------
 
 GET /catalog
-Parámetros: search, brand, min_price, max_price, in_stock, category,
-goal, ingredient.
+Parámetros: search, brand, min_price, max_price, in_stock y category.
 
 GET /catalog/categories
 Sin parámetros.
@@ -344,8 +332,6 @@ Parámetros de escritura:
 - image_url
 - active
 - category_ids
-- goal_ids
-- ingredient_ids
 - id, solamente en actualización
 
 7.4 Categorías
@@ -356,23 +342,7 @@ POST   /categories         name, description, active
 PUT    /categories/item    name, description, active, id
 DELETE /categories/item    id
 
-7.5 Objetivos
-------------------------------------------------------------
-
-GET    /goals
-POST   /goals              name, description, active
-PUT    /goals/item         name, description, active, id
-DELETE /goals/item         id
-
-7.6 Ingredientes
-------------------------------------------------------------
-
-GET    /ingredients
-POST   /ingredients        name, description, active
-PUT    /ingredients/item   name, description, active, id
-DELETE /ingredients/item   id
-
-7.7 Usuarios
+7.5 Usuarios
 ------------------------------------------------------------
 
 GET    /users
@@ -385,7 +355,7 @@ POST   /users/bootstrap    username, password_hash, full_name
 /users/bootstrap debe permanecer fuera de línea después de crear la
 primera cuenta.
 
-7.8 Pedidos
+7.6 Pedidos
 ------------------------------------------------------------
 
 GET  /orders               status
@@ -393,21 +363,17 @@ GET  /orders/item          id
 POST /orders               items_json, id, order_number y datos del cliente
 PUT  /orders/status        status, id
 
-7.9 Respaldos
+7.7 Respaldos
 ------------------------------------------------------------
 
 GET /backup/users
 GET /backup/categories
-GET /backup/goals
-GET /backup/ingredients
 GET /backup/supplements
 GET /backup/supplement_categories
-GET /backup/supplement_goals
-GET /backup/supplement_ingredients
 GET /backup/orders
 GET /backup/order_items
 
-7.10 Configuración técnica
+7.8 Configuración técnica
 ------------------------------------------------------------
 
 - Tiempo máximo: 30 segundos.
@@ -458,10 +424,6 @@ GET  /api/supplements              Todos los roles
 POST/PUT/DELETE /api/supplements   Solo capturista
 GET  /api/categories               Todos los roles
 POST/PUT/DELETE /api/categories    Solo capturista
-GET  /api/goals                    Todos los roles
-POST/PUT/DELETE /api/goals         Solo capturista
-GET  /api/ingredients              Todos los roles
-POST/PUT/DELETE /api/ingredients   Solo capturista
 GET  /api/orders                   Todos los roles
 PUT  /api/orders/{id}/status       Solo capturista
 POST /api/backups                  Solo administrador
@@ -481,8 +443,6 @@ Desactivar usuarios                   Sí       No         No
 Crear o editar suplementos            No       Sí         No
 Eliminar suplementos                  No       Sí         No
 Administrar categorías                No       Sí         No
-Administrar objetivos                 No       Sí         No
-Administrar ingredientes              No       Sí         No
 Cambiar estado de pedidos             No       Sí         No
 Descargar respaldo SQL                Sí       No         No
 
@@ -622,14 +582,12 @@ POST /api/backups
 
 Solo el administrador puede ejecutarlo.
 
-El servidor consulta diez tablas de negocio:
+El servidor consulta seis tablas de negocio:
 
 - Usuarios.
 - Categorías.
-- Objetivos.
-- Ingredientes.
 - Suplementos.
-- Relaciones de suplementos.
+- Relaciones suplemento-categoría.
 - Pedidos.
 - Partidas de pedidos.
 
@@ -709,11 +667,7 @@ ni capturas.
 
 - Suplementos: 4.
 - Categorías: 8.
-- Objetivos: 8.
-- Ingredientes: 11.
 - Relaciones suplemento-categoría: 4.
-- Relaciones suplemento-objetivo: 8.
-- Relaciones suplemento-ingrediente: 6.
 - Pedidos: 0.
 - Partidas de pedido: 0.
 - Usuarios: 4.

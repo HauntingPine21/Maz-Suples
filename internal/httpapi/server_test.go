@@ -79,22 +79,42 @@ func TestCapturerCanCreateCatalogData(t *testing.T) {
 	}
 }
 
-func TestCapturerCanCreateSupplementWithRelations(t *testing.T) {
+func TestCapturerCanCreateSupplementWithoutGoalsOrIngredients(t *testing.T) {
 	db := &fakeDB{role: "CAPTURISTA"}
 	s := New(db, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	body := `{"name":"Creatina","brand":"Maz","description":"Producto de prueba","price":449,"stock":10,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[2],"goal_ids":[2,8],"ingredient_ids":[1]}`
+	body := `{"name":"Creatina","brand":"Maz","description":"Producto de prueba","price":449,"stock":10,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[2]}`
 	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 	params := db.params[len(db.params)-1]
-	for field, want := range map[string][]int64{
-		"category_ids":   {2},
-		"goal_ids":       {2, 8},
-		"ingredient_ids": {1},
-	} {
+	for field, want := range map[string][]int64{"category_ids": {2}} {
 		if got, ok := params[field].([]int64); !ok || !reflect.DeepEqual(got, want) {
 			t.Fatalf("%s=%#v, want %#v", field, params[field], want)
+		}
+	}
+	for _, removed := range []string{"goal_ids", "ingredient_ids"} {
+		if _, exists := params[removed]; exists {
+			t.Fatalf("removed field %s was forwarded", removed)
+		}
+	}
+}
+
+func TestSupplementRejectsRemovedRelationFields(t *testing.T) {
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1],"goal_ids":[1]}`
+	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRemovedResourcesReturnNotFound(t *testing.T) {
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	for _, path := range []string{"/api/goals", "/api/ingredients"} {
+		rec := request(t, s, http.MethodGet, path, "", "CAPTURISTA")
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s status=%d body=%s", path, rec.Code, rec.Body.String())
 		}
 	}
 }
@@ -122,11 +142,20 @@ func TestOrderValidationRejectsDuplicateItems(t *testing.T) {
 	}
 }
 
-func TestSupplementValidationRejectsFractionalStockAndDuplicateRelations(t *testing.T) {
+func TestSupplementValidationRejectsFractionalStock(t *testing.T) {
 	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1.5,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1,1],"goal_ids":[],"ingredient_ids":[]}`
+	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1.5,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1]}`
 	rec := request(t, s, "POST", "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != 422 {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSupplementValidationRejectsDuplicateCategories(t *testing.T) {
+	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1,1]}`
+	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
+	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
@@ -144,7 +173,8 @@ func TestPublicCatalogDoesNotRequireSession(t *testing.T) {
 }
 
 func TestBackupReturnsSQLDownload(t *testing.T) {
-	s := New(&fakeDB{role: "ADMINISTRADOR"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	db := &fakeDB{role: "ADMINISTRADOR"}
+	s := New(db, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := request(t, s, "POST", "/api/backups", `{}`, "ADMINISTRADOR")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -158,6 +188,11 @@ func TestBackupReturnsSQLDownload(t *testing.T) {
 	for _, expected := range []string{"CREATE DATABASE IF NOT EXISTS maz_suplementos", "START TRANSACTION", "INSERT INTO `users`", "COMMIT"} {
 		if !strings.Contains(rec.Body.String(), expected) {
 			t.Fatalf("backup missing %q", expected)
+		}
+	}
+	for _, call := range db.calls {
+		if strings.Contains(call, "goal") || strings.Contains(call, "ingredient") {
+			t.Fatalf("backup called removed endpoint: %s", call)
 		}
 	}
 }

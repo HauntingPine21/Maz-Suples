@@ -63,7 +63,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/users/{id}", s.roles(models.RoleAdmin)(http.HandlerFunc(s.updateUser)))
 	mux.Handle("DELETE /api/users/{id}", s.roles(models.RoleAdmin)(http.HandlerFunc(s.disableUser)))
 
-	for _, r := range []string{"supplements", "categories", "goals", "ingredients"} {
+	for _, r := range []string{"supplements", "categories"} {
 		resource := r
 		mux.Handle("GET /api/"+resource, s.roles(models.RoleAdmin, models.RoleCapturer, models.RoleAuditor)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { s.listResource(w, r, resource) })))
 		if resource == "supplements" {
@@ -269,7 +269,7 @@ func resourceInput(w http.ResponseWriter, r *http.Request, resource string) (map
 	}
 	allowed := map[string]bool{"name": true, "description": true, "active": true}
 	if resource == "supplements" {
-		allowed = map[string]bool{"name": true, "brand": true, "description": true, "price": true, "stock": true, "presentation": true, "flavor": true, "weight": true, "image_url": true, "active": true, "category_ids": true, "goal_ids": true, "ingredient_ids": true}
+		allowed = map[string]bool{"name": true, "brand": true, "description": true, "price": true, "stock": true, "presentation": true, "flavor": true, "weight": true, "image_url": true, "active": true, "category_ids": true}
 	}
 	for k := range p {
 		if !allowed[k] {
@@ -312,7 +312,7 @@ func resourceInput(w http.ResponseWriter, r *http.Request, resource string) (map
 			fail(w, 422, "VALIDATION_ERROR", "La URL de imagen no es válida")
 			return nil, false
 		}
-		for _, field := range []string{"category_ids", "goal_ids", "ingredient_ids"} {
+		for _, field := range []string{"category_ids"} {
 			ids, valid := relationIDs(p[field])
 			if !valid {
 				fail(w, 422, "VALIDATION_ERROR", field+" contiene IDs inválidos o repetidos")
@@ -420,7 +420,7 @@ func (s *Server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
-	tables := []string{"users", "supplements", "categories", "goals", "ingredients", "supplement_categories", "supplement_goals", "supplement_ingredients", "orders", "order_items"}
+	tables := []string{"users", "supplements", "categories", "supplement_categories", "orders", "order_items"}
 	rowsByTable := make(map[string][]map[string]any, len(tables))
 	for _, table := range tables {
 		rows := make([]map[string]any, 0)
@@ -657,7 +657,7 @@ func principal(ctx context.Context) models.Principal {
 func listParams(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
 	query := r.URL.Query()
 	p := map[string]any{}
-	for _, field := range []string{"search", "category", "brand", "goal", "ingredient"} {
+	for _, field := range []string{"search", "category", "brand"} {
 		value := strings.TrimSpace(query.Get(field))
 		if len([]rune(value)) > 100 {
 			fail(w, 400, "INVALID_FILTER", "Filtro demasiado largo: "+field)

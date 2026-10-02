@@ -4,6 +4,10 @@ Todos los cambios relevantes de Maz-Suplementos se documentan en este archivo.
 
 ## [Sin publicar]
 
+### Cambiado
+
+- Se retiraron objetivos, ingredientes y sus relaciones del formulario de productos, API, respaldos, Data Service y esquema TiDB.
+
 ### Añadido
 
 - Canalización de CI con lint, cobertura, race detector, build, navegador y accesibilidad.

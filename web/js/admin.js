@@ -17,8 +17,6 @@ const labels = {
   dashboard: "Resumen",
   supplements: "Productos",
   categories: "Categorías",
-  goals: "Objetivos",
-  ingredients: "Ingredientes",
   orders: "Pedidos",
   users: "Usuarios",
   backups: "Respaldos",
@@ -28,8 +26,6 @@ const permissions = {
     "dashboard",
     "supplements",
     "categories",
-    "goals",
-    "ingredients",
     "orders",
     "users",
     "backups",
@@ -38,16 +34,12 @@ const permissions = {
     "dashboard",
     "supplements",
     "categories",
-    "goals",
-    "ingredients",
     "orders",
   ],
   AUDITOR: [
     "dashboard",
     "supplements",
     "categories",
-    "goals",
-    "ingredients",
     "orders",
     "users",
   ],
@@ -276,18 +268,6 @@ function openForm(resource, row = {}) {
               "text",
               false,
             ],
-            [
-              "goal_ids",
-              "IDs de objetivos (separados por coma)",
-              "text",
-              false,
-            ],
-            [
-              "ingredient_ids",
-              "IDs de ingredientes (separados por coma)",
-              "text",
-              false,
-            ],
             ["active", "Activo", "checkbox", false],
           ]
         : [
@@ -363,7 +343,7 @@ async function saveForm(event, resource, id) {
     .forEach((i) => (data[i.name] = i.checked));
   for (const key of ["price", "stock"])
     if (key in data) data[key] = Number(data[key]);
-  for (const key of ["category_ids", "goal_ids", "ingredient_ids"])
+  for (const key of ["category_ids"])
     if (key in data)
       data[key] = String(data[key])
         .split(",")
