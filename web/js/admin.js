@@ -1,11 +1,10 @@
 import {
   api,
   dateTime,
-  download,
   el,
   money,
   setCSRF,
-} from "./api.js?v=20260930-downloads";
+} from "./api.js?v=20261002-cloud-export";
 const content = document.querySelector("[data-admin-content]"),
   status = document.querySelector("[data-admin-status]"),
   title = document.querySelector("[data-view-title]"),
@@ -79,7 +78,7 @@ async function show(view) {
   content.replaceChildren();
   try {
     if (view === "dashboard") await dashboard();
-    else if (view === "backups") backups();
+    else if (view === "backups") await backups();
     else await listing(view);
     setStatus("");
   } catch (error) {
@@ -215,6 +214,7 @@ function columnsFor(resource) {
   if (resource === "users")
     return [
       { key: "username", label: "Usuario" },
+      { key: "db_username", label: "Usuario SQL" },
       { key: "full_name", label: "Nombre" },
       { key: "role", label: "Rol" },
       { key: "active", label: "Estado", type: "bool" },
@@ -416,12 +416,12 @@ function orderStatus(row) {
     `Pedido ${row.order_number}`;
   dialog.showModal();
 }
-function backups() {
+async function backups() {
   const panel = el("div", { className: "kpi" });
   panel.append(
-    el("h2", { text: "Respaldo lógico" }),
+    el("h2", { text: "Exports de TiDB Cloud" }),
     el("p", {
-      text: "Descarga el esquema y los datos de la aplicación como un archivo SQL en tu computadora.",
+      text: "Crea un Export Task SQL comprimido. La fuente de estos registros es TiDB Cloud Data > Export.",
     }),
   );
   const button = el("button", {
@@ -431,23 +431,12 @@ function backups() {
   });
   button.addEventListener("click", async () => {
     button.disabled = true;
-    setStatus("Generando respaldo paginado…");
+    setStatus("Solicitando el export a TiDB Cloud…");
     try {
-      const result = await download("/api/backups");
-      const url = URL.createObjectURL(result.blob);
-      const link = el("a", {
-        attrs: { href: url, download: result.filename },
-      });
-      link.hidden = true;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus(
-        `Descarga iniciada: ${result.filename}`,
-        false,
-        true,
-      );
+      const result = await api("/api/backups", { method: "POST", body: {} });
+      content.replaceChildren();
+      await backups();
+      setStatus(`Export solicitado: ${result.export_id}`, false, true);
     } catch (error) {
       setStatus(error.message, true);
     } finally {
@@ -456,6 +445,35 @@ function backups() {
   });
   panel.append(button);
   content.append(panel);
+
+  const tasks = await api("/api/backups");
+    if (!tasks.length) {
+      content.append(el("p", { className: "empty", text: "TiDB Cloud no devolvió exports." }));
+      return;
+    }
+    const columns = [
+      ["export_id", "Export ID"], ["state", "Estado"], ["create_time", "Fecha"],
+      ["database", "Base de datos"], ["file_type", "Formato"], ["compression", "Compresión"],
+      ["target_type", "Destino"],
+    ];
+    const stateLabels = { PENDING: "Creando", RUNNING: "En proceso", SUCCEEDED: "Completado", FAILED: "Fallido", EXPIRED: "Expirado" };
+    const wrap = el("div", { className: "table-wrap" });
+    const table = el("table"), thead = el("thead"), head = el("tr"), tbody = el("tbody");
+    columns.forEach(([, label]) => head.append(el("th", { text: label, attrs: { scope: "col" } })));
+    thead.append(head);
+    tasks.forEach((task) => {
+      const tr = el("tr");
+      columns.forEach(([key]) => {
+        let value = task[key];
+        if (key === "state") value = stateLabels[value] || value;
+        if (key === "create_time") value = format(value, "date");
+        tr.append(el("td", { text: String(value || "—") }));
+      });
+      tbody.append(tr);
+    });
+    table.append(thead, tbody);
+    wrap.append(table);
+    content.append(wrap);
 }
 async function logout() {
   try {

@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"maz-suplementos/internal/config"
+	"maz-suplementos/internal/identity"
 	"maz-suplementos/internal/tidb"
 )
 
@@ -28,7 +29,12 @@ func main() {
 		fatal(err)
 	}
 	c := tidb.New(cfg.DataServiceBaseURL, cfg.DataAppID, cfg.DataAPIPublicKey, cfg.DataAPIPrivateKey)
-	_, err = c.Call(context.Background(), http.MethodPost, "users/bootstrap", map[string]any{"username": username, "full_name": fullName, "password_hash": string(hash)})
+	dbUsername := identity.DatabaseUsername(username, cfg.TiDBSQLUserPrefix)
+	_, err = c.Call(context.Background(), http.MethodPost, "users/sql_account", map[string]any{"db_username": dbUsername, "db_password": password})
+	if err != nil {
+		fatal(err)
+	}
+	_, err = c.Call(context.Background(), http.MethodPost, "users/bootstrap", map[string]any{"username": username, "db_username": dbUsername, "full_name": fullName, "password_hash": string(hash)})
 	if err != nil {
 		fatal(err)
 	}

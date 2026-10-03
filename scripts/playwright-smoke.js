@@ -130,6 +130,36 @@ const products = [
       path: path.join(artifacts, "login-mobile.png"),
       fullPage: true,
     });
+
+	let exportCreates = 0;
+	const adminPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+	await adminPage.route("**/api/auth/me", (route) => route.fulfill({
+	  status: 200,
+	  contentType: "application/json",
+	  body: JSON.stringify({ user: { id: 1, username: "Admin", full_name: "Administrador", role: "ADMINISTRADOR" } }),
+	}));
+	await adminPage.route("**/api/supplements**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+	await adminPage.route("**/api/orders**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+	await adminPage.route("**/api/backups", async (route) => {
+	  if (route.request().method() === "POST") {
+		exportCreates += 1;
+		await route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify({ export_id: "exp-new123", state: "PENDING" }) });
+		return;
+	  }
+	  await route.fulfill({
+		status: 200,
+		contentType: "application/json",
+		body: JSON.stringify([{ export_id: exportCreates ? "exp-new123" : "exp-old123", state: exportCreates ? "PENDING" : "EXPIRED", create_time: "2026-10-03T14:39:58Z", database: "maz_suplementos", file_type: "SQL", compression: "GZIP", target_type: "LOCAL" }]),
+	  });
+	});
+	await adminPage.goto(`${baseURL}/admin`);
+	await adminPage.getByRole("button", { name: "Respaldos" }).click();
+	await adminPage.getByRole("heading", { name: "Exports de TiDB Cloud" }).waitFor();
+	await adminPage.getByText("exp-old123").waitFor();
+	await adminPage.getByRole("button", { name: "Generar respaldo" }).click();
+	await adminPage.getByRole("cell", { name: "exp-new123", exact: true }).waitFor();
+	if (exportCreates !== 1) throw new Error("El panel no solicitó exactamente un export");
+	await adminPage.screenshot({ path: path.join(artifacts, "admin-cloud-exports.png"), fullPage: true });
     console.log(
       JSON.stringify({
         ok: true,

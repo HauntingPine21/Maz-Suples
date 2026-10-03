@@ -11,6 +11,7 @@ const (
 type User struct {
 	ID           int64     `json:"id"`
 	Username     string    `json:"username"`
+	DBUsername   string    `json:"db_username"`
 	PasswordHash string    `json:"-"`
 	FullName     string    `json:"full_name"`
 	Role         string    `json:"role"`

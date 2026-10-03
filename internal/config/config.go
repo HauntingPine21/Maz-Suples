@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ type Config struct {
 	Env, Port                           string
 	DataServiceBaseURL, DataAppID       string
 	DataAPIPublicKey, DataAPIPrivateKey string
+	TiDBClusterID, TiDBDatabase         string
+	TiDBCloudProfile, TiDBSQLUserPrefix string
 	CookieSecure                        bool
 	SessionTTL                          time.Duration
 }
@@ -30,10 +33,19 @@ func Load() (Config, error) {
 		DataServiceBaseURL: strings.TrimRight(os.Getenv("TIDB_DATA_SERVICE_BASE_URL"), "/"),
 		DataAppID:          os.Getenv("TIDB_DATA_APP_ID"), DataAPIPublicKey: os.Getenv("TIDB_DATA_API_PUBLIC_KEY"),
 		DataAPIPrivateKey: os.Getenv("TIDB_DATA_API_PRIVATE_KEY"),
+		TiDBClusterID:     os.Getenv("TIDB_CLUSTER_ID"), TiDBDatabase: value("TIDB_DATABASE", "maz_suplementos"),
+		TiDBCloudProfile:  value("TIDB_CLOUD_PROFILE", "default"),
+		TiDBSQLUserPrefix: os.Getenv("TIDB_SQL_USER_PREFIX"),
 		CookieSecure:      strings.EqualFold(value("COOKIE_SECURE", "false"), "true"), SessionTTL: time.Duration(ttl) * time.Hour,
 	}
 	if c.DataServiceBaseURL == "" || c.DataAppID == "" || c.DataAPIPublicKey == "" || c.DataAPIPrivateKey == "" {
 		return c, errors.New("faltan variables TIDB_DATA_SERVICE_*; consulta .env.example")
+	}
+	if c.TiDBClusterID == "" {
+		return c, errors.New("falta TIDB_CLUSTER_ID; consulta .env.example")
+	}
+	if !regexp.MustCompile(`^[A-Za-z0-9]{1,20}\.$`).MatchString(c.TiDBSQLUserPrefix) {
+		return c, errors.New("TIDB_SQL_USER_PREFIX debe ser el prefijo alfanumérico del clúster terminado en punto")
 	}
 	u, err := url.Parse(c.DataServiceBaseURL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {

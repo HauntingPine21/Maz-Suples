@@ -22,6 +22,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"maz-suplementos/internal/cloudexport"
+	"maz-suplementos/internal/identity"
 	"maz-suplementos/internal/models"
 	"maz-suplementos/internal/tidb"
 	"maz-suplementos/internal/validation"
@@ -32,10 +34,12 @@ const csrfCookie = "maz_csrf"
 
 type Server struct {
 	db            tidb.Caller
+	exporter      cloudexport.Exporter
 	web           http.Handler
 	secureCookie  bool
 	sessionTTL    time.Duration
 	logger        *slog.Logger
+	sqlUserPrefix string
 	attemptMu     sync.Mutex
 	loginAttempts map[string][]time.Time
 	orderAttempts map[string][]time.Time
@@ -43,8 +47,12 @@ type Server struct {
 
 type principalKey struct{}
 
-func New(db tidb.Caller, web http.Handler, secureCookie bool, ttl time.Duration, logger *slog.Logger) *Server {
-	return &Server{db: db, web: web, secureCookie: secureCookie, sessionTTL: ttl, logger: logger, loginAttempts: map[string][]time.Time{}, orderAttempts: map[string][]time.Time{}}
+func New(db tidb.Caller, exporter cloudexport.Exporter, web http.Handler, secureCookie bool, ttl time.Duration, logger *slog.Logger, sqlUserPrefix ...string) *Server {
+	prefix := ""
+	if len(sqlUserPrefix) > 0 {
+		prefix = sqlUserPrefix[0]
+	}
+	return &Server{db: db, exporter: exporter, web: web, secureCookie: secureCookie, sessionTTL: ttl, logger: logger, sqlUserPrefix: prefix, loginAttempts: map[string][]time.Time{}, orderAttempts: map[string][]time.Time{}}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -77,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/orders/{id}", s.roles(models.RoleAdmin, models.RoleCapturer, models.RoleAuditor)(http.HandlerFunc(s.getOrder)))
 	mux.Handle("PUT /api/orders/{id}/status", s.roles(models.RoleCapturer)(http.HandlerFunc(s.updateOrderStatus)))
 	mux.Handle("POST /api/backups", s.roles(models.RoleAdmin)(http.HandlerFunc(s.backup)))
+	mux.Handle("GET /api/backups", s.roles(models.RoleAdmin)(http.HandlerFunc(s.listBackups)))
 	mux.Handle("/", s.web)
 	return s.securityHeaders(s.recoverPanic(s.requestLog(mux)))
 }
@@ -174,13 +183,44 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	existing, err := s.db.Call(r.Context(), http.MethodGet, "auth/user", map[string]any{"username": in.Username})
+	if err != nil {
+		s.logger.Error("user creation precheck failed", "endpoint", "auth/user", "error", err.Error())
+		s.dataError(w, err)
+		return
+	}
+	if len(existing.Data.Rows) > 0 {
+		fail(w, http.StatusConflict, "CONFLICT", "Ya existe un usuario con ese nombre")
+		return
+	}
 	hashBytes, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		fail(w, 500, "INTERNAL_ERROR", "No fue posible crear el usuario")
 		return
 	}
-	params := map[string]any{"username": in.Username, "full_name": in.FullName, "role": in.Role, "active": in.Active, "password_hash": string(hashBytes)}
-	s.callRows(w, r, http.MethodPost, "users", params, http.StatusCreated, true)
+	dbUsername := identity.DatabaseUsername(in.Username, s.sqlUserPrefix)
+	sqlAccount, err := s.db.Call(r.Context(), http.MethodPost, "users/sql_account", map[string]any{"db_username": dbUsername, "db_password": in.Password})
+	if err != nil {
+		s.logger.Error("SQL account creation failed", "endpoint", "users/sql_account", "db_username", dbUsername, "error", err.Error())
+		s.dataError(w, err)
+		return
+	}
+	if len(sqlAccount.Data.Rows) != 1 || asString(sqlAccount.Data.Rows[0]["db_username"]) != dbUsername {
+		fail(w, http.StatusBadGateway, "SQL_ACCOUNT_UNVERIFIED", "No fue posible confirmar la cuenta SQL")
+		return
+	}
+	params := map[string]any{"username": in.Username, "db_username": dbUsername, "full_name": in.FullName, "role": in.Role, "active": in.Active, "password_hash": string(hashBytes)}
+	res, err := s.db.Call(r.Context(), http.MethodPost, "users", params)
+	if err != nil {
+		s.logger.Error("application user insert failed", "endpoint", "users", "db_username", dbUsername, "error", err.Error())
+		s.dataError(w, err)
+		return
+	}
+	for _, row := range res.Data.Rows {
+		delete(row, "password_hash")
+	}
+	s.logger.Info("application and SQL user created", "actor_user_id", principal(r.Context()).ID, "db_username", dbUsername)
+	writeJSON(w, http.StatusCreated, res.Data.Rows)
 }
 func (s *Server) updateUser(w http.ResponseWriter, r *http.Request) {
 	in, ok := userInput(w, r, false)
@@ -420,33 +460,31 @@ func (s *Server) updateOrderStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backup(w http.ResponseWriter, r *http.Request) {
-	tables := []string{"users", "supplements", "categories", "supplement_categories", "orders", "order_items"}
-	rowsByTable := make(map[string][]map[string]any, len(tables))
-	for _, table := range tables {
-		rows := make([]map[string]any, 0)
-		for page := 1; ; page++ {
-			res, err := s.db.Call(r.Context(), http.MethodGet, "backup/"+table, map[string]any{"page": page, "page_size": 2000})
-			if err != nil {
-				s.dataError(w, err)
-				return
-			}
-			rows = append(rows, res.Data.Rows...)
-			if len(res.Data.Rows) < 2000 {
-				break
-			}
-		}
-		rowsByTable[table] = rows
+	task, err := s.exporter.Create(r.Context())
+	if err != nil {
+		s.exportError(w, err)
+		return
 	}
-	createdAt := time.Now().UTC()
-	encoded := encodeSQLBackup(createdAt, tables, rowsByTable)
-	sum := sha256.Sum256(encoded)
-	name := "maz-suplementos-" + createdAt.Format("2006-01-02T150405Z") + ".sql"
-	w.Header().Set("Content-Type", "application/sql; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-	w.Header().Set("Content-Length", strconv.Itoa(len(encoded)))
-	w.Header().Set("X-Backup-SHA256", hex.EncodeToString(sum[:]))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(encoded)
+	s.logger.Info("TiDB Cloud export requested", "actor_user_id", principal(r.Context()).ID, "export_id", task.ExportID)
+	writeJSON(w, http.StatusAccepted, task)
+}
+
+func (s *Server) listBackups(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.exporter.List(r.Context())
+	if err != nil {
+		s.exportError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, tasks)
+}
+
+func (s *Server) exportError(w http.ResponseWriter, err error) {
+	s.logger.Error("TiDB Cloud export failed", "error", err.Error())
+	if errors.Is(err, cloudexport.ErrCLIUnavailable) {
+		fail(w, http.StatusServiceUnavailable, "TIDB_CLI_UNAVAILABLE", "TiDB Cloud CLI no está instalado o configurado en el servidor")
+		return
+	}
+	fail(w, http.StatusBadGateway, "TIDB_EXPORT_ERROR", "TiDB Cloud no pudo completar la operación de exportación")
 }
 
 func (s *Server) requireAuth(next http.Handler) http.Handler {

@@ -347,10 +347,11 @@ DELETE /categories/item    id
 
 GET    /users
 GET    /users/item         id
-POST   /users              username, password_hash, full_name, role, active
+POST   /users              username, db_username, password_hash, full_name, role, active
 PUT    /users/item         datos editables, password_hash, id
 DELETE /users/item         id
-POST   /users/bootstrap    username, password_hash, full_name
+POST   /users/sql_account  db_username, db_password (transitoria)
+POST   /users/bootstrap    username, db_username, password_hash, full_name
 
 /users/bootstrap debe permanecer fuera de línea después de crear la
 primera cuenta.
@@ -363,22 +364,19 @@ GET  /orders/item          id
 POST /orders               items_json, id, order_number y datos del cliente
 PUT  /orders/status        status, id
 
-7.7 Respaldos
+7.7 Cuentas SQL
 ------------------------------------------------------------
 
-GET /backup/users
-GET /backup/categories
-GET /backup/supplements
-GET /backup/supplement_categories
-GET /backup/orders
-GET /backup/order_items
+El endpoint /users/sql_account ejecuta CREATE USER IF NOT EXISTS y luego
+confirma la cuenta en mysql.user. No asigna GRANT ni guarda la contraseña.
+Los endpoints /backup/* fueron retirados: el respaldo ya no depende de
+Data Service, sino de TiDB Cloud Export.
 
 7.8 Configuración técnica
 ------------------------------------------------------------
 
 - Tiempo máximo: 30 segundos.
 - Límite normal: 1,000 filas.
-- Límite de respaldo: 2,000 filas por página.
 - Caché: deshabilitada.
 - Ejecución por lotes: deshabilitada.
 - Etiqueta: Default.
@@ -426,7 +424,7 @@ GET  /api/categories               Todos los roles
 POST/PUT/DELETE /api/categories    Solo capturista
 GET  /api/orders                   Todos los roles
 PUT  /api/orders/{id}/status       Solo capturista
-POST /api/backups                  Solo administrador
+GET/POST /api/backups              Solo administrador
 
 
 9. MATRIZ DE PERMISOS
@@ -582,45 +580,25 @@ POST /api/backups
 
 Solo el administrador puede ejecutarlo.
 
-El servidor consulta seis tablas de negocio:
+El backend ejecuta TiDB Cloud CLI con argumentos separados, sin shell:
 
-- Usuarios.
-- Categorías.
-- Suplementos.
-- Relaciones suplemento-categoría.
-- Pedidos.
-- Partidas de pedidos.
+ticloud -P <perfil> serverless export create -c <cluster> \
+  --target-type LOCAL --file-type SQL --compression GZIP \
+  --filter <base>.* --force --no-color
 
-La tabla sessions se excluye intencionalmente.
+TiDB Cloud devuelve un Export ID. GET /api/backups consulta la lista real
+con "ticloud serverless export list -o json". Los registros mostrados en
+Maz-Suplementos son los mismos de Data > Export en el panel oficial.
 
-Nombre del archivo:
-
-maz-suplementos-AAAA-MM-DDTHHMMSSZ.sql
-
-La respuesta incluye:
-
-- Content-Disposition: attachment.
-- Contenido SQL.
-- Hash SHA-256 del archivo.
-
-El navegador lo guarda en la carpeta de descargas configurada en la
-computadora. Ya no se genera como JSON dentro de la carpeta del proyecto.
-
-El respaldo contiene hashes bcrypt porque forman parte de la tabla de
-usuarios, pero no incluye:
-
-- Contraseñas en texto plano.
-- Clave pública de Data Service.
-- Clave privada de Data Service.
-- Tokens activos de sesión.
+El clúster, la base y el perfil se obtienen del entorno. Ninguna credencial
+de TiDB Cloud se guarda en el repositorio ni llega al navegador.
 
 Limitaciones:
 
-- Las tablas se descargan mediante solicitudes independientes.
-- No constituye un snapshot global transaccional.
-- Puede haber diferencias si existen escrituras concurrentes.
-- La restauración no se probó en una instancia TiDB separada durante
-  esta auditoría.
+- El binario ticloud y el perfil autenticado deben existir en el runtime.
+- Vercel no incluye automáticamente el binario ni el perfil local.
+- Los exports LOCAL expiran conforme a la política de TiDB Cloud.
+- La restauración debe validarse en una instancia TiDB separada.
 
 
 13. VARIABLES DE ENTORNO
@@ -635,14 +613,26 @@ Puerto HTTP.
 TIDB_DATA_SERVICE_BASE_URL
 URL regional de Data Service.
 
-TIDB_DATA_SERVICE_APP_ID
+TIDB_DATA_APP_ID
 Identificador público del Data App.
 
-TIDB_DATA_SERVICE_PUBLIC_KEY
+TIDB_DATA_API_PUBLIC_KEY
 Usuario de autenticación Data API.
 
-TIDB_DATA_SERVICE_PRIVATE_KEY
+TIDB_DATA_API_PRIVATE_KEY
 Secreto de autenticación.
+
+TIDB_CLUSTER_ID
+Identificador del clúster usado por TiDB Cloud Export.
+
+TIDB_DATABASE
+Base incluida en el export.
+
+TIDB_CLOUD_PROFILE
+Perfil autenticado de ticloud.
+
+TIDB_SQL_USER_PREFIX
+Prefijo obligatorio del clúster para cuentas SQL, terminado en punto.
 
 COOKIE_SECURE
 Fuerza cookies HTTPS.

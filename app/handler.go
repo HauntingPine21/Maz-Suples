@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"maz-suplementos/internal/cloudexport"
 	"maz-suplementos/internal/config"
 	"maz-suplementos/internal/httpapi"
 	"maz-suplementos/internal/tidb"
@@ -20,6 +21,10 @@ func NewHandler() (http.Handler, error) {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	client := tidb.New(cfg.DataServiceBaseURL, cfg.DataAppID, cfg.DataAPIPublicKey, cfg.DataAPIPrivateKey)
-	server := httpapi.New(client, http.NotFoundHandler(), cfg.CookieSecure, cfg.SessionTTL, logger)
+	exporter, err := cloudexport.New(cfg.TiDBClusterID, cfg.TiDBDatabase, cfg.TiDBCloudProfile)
+	if err != nil {
+		return nil, err
+	}
+	server := httpapi.New(client, exporter, http.NotFoundHandler(), cfg.CookieSecure, cfg.SessionTTL, logger, cfg.TiDBSQLUserPrefix)
 	return server.Handler(), nil
 }

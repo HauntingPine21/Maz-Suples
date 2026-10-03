@@ -25,7 +25,7 @@ Roles estrictos:
 - `database/schema.sql`, `database/seeds.sql`: esquema e información demo idempotente. El catálogo relaciona productos únicamente con categorías.
 - `database/endpoints`: SQL revisable e inventario de endpoints.
 - `web`: tienda, carrito, checkout y panel responsivo.
-- `POST /api/backups`: genera una descarga SQL protegida para administradores.
+- `GET/POST /api/backups`: consulta y crea tareas reales de TiDB Cloud Export para administradores.
 
 ## Requisitos y configuración
 
@@ -45,10 +45,20 @@ Variables necesarias:
 - `TIDB_DATA_SERVICE_BASE_URL`: dominio regional, por ejemplo `https://us-east-1.data.tidbcloud.com`.
 - `TIDB_DATA_APP_ID`: identificador del Data App.
 - `TIDB_DATA_API_PUBLIC_KEY` y `TIDB_DATA_API_PRIVATE_KEY`: clave `ReadAndWrite` del Data App.
+- `TIDB_CLUSTER_ID`: identificador numérico del clúster que muestra TiDB Cloud.
+- `TIDB_DATABASE`: base incluida en el export (por defecto `maz_suplementos`).
+- `TIDB_CLOUD_PROFILE`: perfil autenticado de TiDB Cloud CLI (por defecto `default`).
+- `TIDB_SQL_USER_PREFIX`: prefijo obligatorio de usuarios SQL mostrado por TiDB Cloud, incluido el punto final (por ejemplo `abc123.`).
 - `COOKIE_SECURE=true` en HTTPS; en localhost HTTP se conserva `false`.
 - `APP_PORT`, `APP_ENV`, `SESSION_TTL_HOURS` son configurables.
 
-No se necesitan claves de la API administrativa para ejecutar la aplicación. La Data API Key no crea por sí sola el Data App ni sus endpoints.
+La Data API Key no crea por sí sola el Data App ni sus endpoints. La funcionalidad de respaldos también requiere [TiDB Cloud CLI](https://docs.pingcap.com/tidbcloud/get-started-with-cli/) en el servidor. En Windows descarga el binario oficial, coloca `ticloud.exe` en una carpeta incluida en `PATH`; en macOS/Linux puede usarse el instalador oficial indicado en esa guía. Autentica el perfil y comprueba la instalación con:
+
+```bash
+ticloud version
+ticloud -P default auth login
+ticloud serverless export list -c "$TIDB_CLUSTER_ID" -o json
+```
 
 ## Ejecución
 
@@ -90,9 +100,30 @@ La documentación pública de Data Service confirma que varias sentencias se eje
 
 Sesiones opacas y CSRF se generan con `crypto/rand`; en TiDB solo se guardan hashes SHA-256. Cookies `HttpOnly`, `SameSite=Lax` y `Secure` bajo HTTPS; producción falla de forma segura si `COOKIE_SECURE` no es `true`. El token CSRF usa cookie `SameSite=Strict` y cabecera. Hay CSP sin scripts inline, límites de cuerpo y cabeceras, timeouts, rate limit de login por IP y cuenta, validaciones cerradas, bcrypt y autorización centralizada. Cambiar una contraseña revoca las sesiones activas. `.env` y los respaldos locales antiguos están ignorados.
 
-## Respaldos
+## Respaldos con TiDB Cloud Export
 
-Un administrador usa el panel o `POST /api/backups`. El servidor pagina cada tabla y responde con `maz-suplementos-<fecha>.sql` como archivo adjunto; el navegador lo guarda en la carpeta de descargas configurada por el usuario. El archivo incluye el esquema y los datos, pero no sesiones ni secretos. Al consultar tablas en peticiones separadas no se puede afirmar un snapshot global consistente; esta limitación está documentada deliberadamente.
+Un administrador usa el panel o `POST /api/backups`. El backend ejecuta `ticloud` sin shell y con argumentos separados:
+
+```text
+ticloud -P <perfil> serverless export create -c <cluster> --target-type LOCAL --file-type SQL --compression GZIP --filter <base>.* --force --no-color
+```
+
+`GET /api/backups` obtiene la lista real con `ticloud serverless export list`; no utiliza registros simulados ni una tabla local. El Export ID, estado, fecha, formato y destino proceden de TiDB Cloud y la misma tarea aparece en **Data > Export**. El destino `LOCAL` de TiDB Cloud conserva temporalmente el archivo para descarga desde su panel.
+
+El proceso del servidor necesita el binario `ticloud` en `PATH` y acceso al perfil indicado. Una función estándar de Vercel no incluye automáticamente ese binario ni el perfil del equipo local: para activar respaldos allí se debe provisionar ambos en el runtime o ejecutar el backend Go en un host persistente. Si faltan, la API responde `TIDB_CLI_UNAVAILABLE` en vez de simular éxito.
+
+## Usuarios de aplicación y cuentas SQL
+
+Al crear un usuario desde el panel, Go mantiene el hash bcrypt en `maz_suplementos.users` y también solicita `CREATE USER IF NOT EXISTS '<usuario_sql>'@'%' IDENTIFIED BY ...` mediante el endpoint protegido de Data Service. La contraseña en texto solo vive durante esa solicitud; no se almacena ni se devuelve. Las cuentas SQL no reciben `GRANT`, por lo que quedan con privilegios mínimos.
+
+TiDB Cloud exige un prefijo propio del clúster para estas cuentas. El backend lo toma de `TIDB_SQL_USER_PREFIX`: conserva el nombre de aplicación cuando cabe dentro del límite SQL y guarda el resultado completo (`<prefijo><username>`) en `users.db_username`; si no cabe o contiene caracteres incompatibles, usa `<prefijo>app_<hash>` de forma determinista. La eliminación actual es lógica (`active=FALSE`), así que deliberadamente no ejecuta `DROP USER`: la cuenta continúa en `mysql.user`. Cambiar el nombre o contraseña de aplicación tampoco renombra ni altera automáticamente la cuenta SQL.
+
+Verificación académica:
+
+```sql
+SELECT User, Host FROM mysql.user ORDER BY User;
+SELECT id, username, db_username FROM maz_suplementos.users ORDER BY id;
+```
 
 ## Verificación local
 
