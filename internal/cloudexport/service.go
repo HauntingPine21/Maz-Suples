@@ -60,6 +60,7 @@ type Service struct {
 	publicKey          string
 	privateKey         string
 	runner             commandRunner
+	cliFallback        func() (string, error)
 	commandEnvironment []string
 	profileOnce        sync.Once
 	profileErr         error
@@ -86,7 +87,7 @@ func newService(clusterID, database, profile, publicKey, privateKey string, runn
 	if (publicKey == "") != (privateKey == "") {
 		return nil, errors.New("las dos credenciales de TiDB Cloud deben configurarse juntas")
 	}
-	service := &Service{clusterID: clusterID, database: database, profile: profile, publicKey: publicKey, privateKey: privateKey, runner: runner}
+	service := &Service{clusterID: clusterID, database: database, profile: profile, publicKey: publicKey, privateKey: privateKey, runner: runner, cliFallback: embeddedCLIPath}
 	if publicKey != "" {
 		configRoot := filepath.Join(os.TempDir(), "maz-suplementos-ticloud")
 		service.commandEnvironment = []string{"HOME=" + configRoot, "XDG_CONFIG_HOME=" + filepath.Join(configRoot, ".config")}
@@ -186,7 +187,7 @@ func (s *Service) cli() (string, error) {
 	if err == nil {
 		return path, nil
 	}
-	path, err = embeddedCLIPath()
+	path, err = s.cliFallback()
 	if err != nil {
 		return "", ErrCLIUnavailable
 	}

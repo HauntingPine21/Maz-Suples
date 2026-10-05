@@ -76,6 +76,7 @@ func TestRejectsUnsafeConfiguration(t *testing.T) {
 
 func TestMissingCLIHasSpecificError(t *testing.T) {
 	service, _ := newService("123", "db", "", "", "", &fakeRunner{})
+	service.cliFallback = func() (string, error) { return "", errors.New("missing embedded CLI") }
 	_, err := service.List(context.Background())
 	if !errors.Is(err, ErrCLIUnavailable) {
 		t.Fatalf("err=%v", err)
