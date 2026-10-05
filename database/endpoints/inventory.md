@@ -10,14 +10,14 @@ Configura cada endpoint con el método y la ruta indicados. Los nombres de pará
 | GET | `/auth/user` | `auth/get-auth-user.sql` | no |
 | POST/GET/DELETE | `/sessions`, `/sessions/current` | `sessions/*` | no |
 | GET/POST/PUT/DELETE | `/users`, `/users/item` | `users/*` | GET lista |
+| POST | `/users/sql_account` | `users/post-users-sql-account.sql` | no |
 | POST | `/users/bootstrap` | `users/post-users-bootstrap.sql` | no |
 | GET/POST/PUT/DELETE | `/supplements`, `/supplements/item` | `supplements/*` | GET lista |
 | GET/POST/PUT/DELETE | `/categories`, `/categories/item` | `categories/*` | GET lista |
 | GET/POST | `/orders` | `orders/get-orders.sql`, `orders/post-orders.sql` | GET |
 | GET | `/orders/item` | `orders/get-orders-item.sql` | no |
 | PUT | `/orders/status` | `orders/put-orders-status.sql` | no |
-| GET | `/backup/{table-name}` | `backup/*` (una ruta fija por tabla) | sí, 2000 |
 
-Los recursos de objetivos e ingredientes se retiraron el 2 de octubre de 2026. La sincronización elimina también sus endpoints anteriores del Data App.
+Los recursos de objetivos e ingredientes y los antiguos endpoints de respaldo lógico se retiraron el 2 de octubre de 2026. La sincronización elimina también esos endpoints anteriores del Data App. Los respaldos ahora se solicitan directamente a TiDB Cloud Export desde el backend.
 
 Usa una Data API Key `ReadAndWrite`. La clave es credencial de ejecución del Data App, no una clave administrativa de TiDB Cloud. Una vez creado el primer administrador, retira o desactiva `/users/bootstrap`.

@@ -10,6 +10,9 @@ func TestNewHandlerLoadsServerlessConfiguration(t *testing.T) {
 	t.Setenv("TIDB_DATA_APP_ID", "test-app")
 	t.Setenv("TIDB_DATA_API_PUBLIC_KEY", "public")
 	t.Setenv("TIDB_DATA_API_PRIVATE_KEY", "private")
+	t.Setenv("TIDB_CLUSTER_ID", "123456")
+	t.Setenv("TIDB_DATABASE", "maz_suplementos")
+	t.Setenv("TIDB_SQL_USER_PREFIX", "cluster.")
 
 	handler, err := NewHandler()
 	if err != nil {

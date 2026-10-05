@@ -4,13 +4,15 @@ USE maz_suplementos;
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   username VARCHAR(64) NOT NULL,
+	  db_username VARCHAR(32) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(120) NOT NULL,
   role ENUM('ADMINISTRADOR','CAPTURISTA','AUDITOR') NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_users_username (username)
+	  UNIQUE KEY uk_users_username (username),
+	  UNIQUE KEY uk_users_db_username (db_username)
 );
 
 CREATE TABLE IF NOT EXISTS categories (

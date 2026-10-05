@@ -86,6 +86,12 @@ module.exports = async function configure({ chromium }) {
       "GET:/backup/ingredients",
       "GET:/backup/supplement_goals",
       "GET:/backup/supplement_ingredients",
+	  "GET:/backup/users",
+	  "GET:/backup/supplements",
+	  "GET:/backup/categories",
+	  "GET:/backup/supplement_categories",
+	  "GET:/backup/orders",
+	  "GET:/backup/order_items",
     ]);
     const configured = [];
     for (const file of files.sort()) {
@@ -152,10 +158,14 @@ module.exports = async function configure({ chromium }) {
         has_modified: true,
       };
       delete payload.session_id;
-      await request(`${apiBase}/${summary.id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
+	  try {
+		await request(`${apiBase}/${summary.id}`, {
+		  method: "PUT",
+		  body: JSON.stringify(payload),
+		});
+	  } catch (error) {
+		throw new Error(`No se pudo configurar ${method} ${route}: ${error.message}`, { cause: error });
+	  }
       configured.push({ id: summary.id, method, route, args: args.length, pagination });
     }
 

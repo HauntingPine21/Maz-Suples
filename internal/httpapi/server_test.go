@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"maz-suplementos/internal/cloudexport"
 	"maz-suplementos/internal/tidb"
 )
 
@@ -21,7 +22,24 @@ type fakeDB struct {
 	calls        []string
 	params       []map[string]any
 	passwordHash string
+	userAbsent   bool
 }
+
+type fakeExporter struct {
+	tasks []cloudexport.Task
+	err   error
+}
+
+func (f *fakeExporter) Create(context.Context) (cloudexport.Task, error) {
+	if f.err != nil {
+		return cloudexport.Task{}, f.err
+	}
+	if len(f.tasks) == 0 {
+		return cloudexport.Task{ExportID: "exp-test", State: "PENDING"}, nil
+	}
+	return f.tasks[0], nil
+}
+func (f *fakeExporter) List(context.Context) ([]cloudexport.Task, error) { return f.tasks, f.err }
 
 func (f *fakeDB) Call(_ context.Context, method, path string, p map[string]any) (tidb.Response, error) {
 	f.calls = append(f.calls, method+" "+path)
@@ -31,7 +49,13 @@ func (f *fakeDB) Call(_ context.Context, method, path string, p map[string]any) 
 	case "sessions/current":
 		rows = []map[string]any{{"user_id": "7", "username": "ana", "full_name": "Ana Ruiz", "role": f.role, "csrf_hash": hash("csrf-test")}}
 	case "auth/user":
-		rows = []map[string]any{{"id": "7", "username": "ana", "full_name": "Ana Ruiz", "role": f.role, "active": "1", "password_hash": f.passwordHash}}
+		if !f.userAbsent {
+			rows = []map[string]any{{"id": "7", "username": "ana", "full_name": "Ana Ruiz", "role": f.role, "active": "1", "password_hash": f.passwordHash}}
+		}
+	case "users/sql_account":
+		rows = []map[string]any{{"db_username": p["db_username"], "db_host": "%"}}
+	case "users":
+		rows = []map[string]any{{"id": "8", "username": p["username"], "db_username": p["db_username"], "full_name": p["full_name"], "role": p["role"], "active": p["active"]}}
 	case "sessions":
 		rows = []map[string]any{{"user_id": "7"}}
 	default:
@@ -53,7 +77,7 @@ func TestRoleMatrixDeniesWrites(t *testing.T) {
 	tests := []struct{ role, method, path, body string }{{"AUDITOR", "DELETE", "/api/supplements/1", ""}, {"CAPTURISTA", "POST", "/api/users", `{"username":"x"}`}, {"ADMINISTRADOR", "POST", "/api/supplements", `{"name":"x"}`}}
 	for _, tc := range tests {
 		t.Run(tc.role+tc.path, func(t *testing.T) {
-			s := New(&fakeDB{role: tc.role}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			s := New(&fakeDB{role: tc.role}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			rec := request(t, s, tc.method, tc.path, tc.body, tc.role)
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -62,7 +86,7 @@ func TestRoleMatrixDeniesWrites(t *testing.T) {
 	}
 }
 func TestCSRFRequiredForAuthenticatedMutation(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	req := httptest.NewRequest("DELETE", "/api/supplements/1", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: "session"})
 	rec := httptest.NewRecorder()
@@ -72,7 +96,7 @@ func TestCSRFRequiredForAuthenticatedMutation(t *testing.T) {
 	}
 }
 func TestCapturerCanCreateCatalogData(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := request(t, s, "POST", "/api/categories", `{"name":"Proteína","description":"","active":true}`, "CAPTURISTA")
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
@@ -81,7 +105,7 @@ func TestCapturerCanCreateCatalogData(t *testing.T) {
 
 func TestCapturerCanCreateSupplementWithoutGoalsOrIngredients(t *testing.T) {
 	db := &fakeDB{role: "CAPTURISTA"}
-	s := New(db, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(db, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"name":"Creatina","brand":"Maz","description":"Producto de prueba","price":449,"stock":10,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[2]}`
 	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != http.StatusCreated {
@@ -101,7 +125,7 @@ func TestCapturerCanCreateSupplementWithoutGoalsOrIngredients(t *testing.T) {
 }
 
 func TestSupplementRejectsRemovedRelationFields(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1],"goal_ids":[1]}`
 	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != http.StatusBadRequest {
@@ -110,7 +134,7 @@ func TestSupplementRejectsRemovedRelationFields(t *testing.T) {
 }
 
 func TestRemovedResourcesReturnNotFound(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	for _, path := range []string{"/api/goals", "/api/ingredients"} {
 		rec := request(t, s, http.MethodGet, path, "", "CAPTURISTA")
 		if rec.Code != http.StatusNotFound {
@@ -121,7 +145,7 @@ func TestRemovedResourcesReturnNotFound(t *testing.T) {
 func TestLoginUsesBcryptAndSetsSecureCookieAttributes(t *testing.T) {
 	b, _ := bcrypt.GenerateFromPassword([]byte("correct horse battery"), bcrypt.MinCost)
 	db := &fakeDB{role: "AUDITOR", passwordHash: string(b)}
-	s := New(db, http.NotFoundHandler(), true, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(db, &fakeExporter{}, http.NotFoundHandler(), true, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"username":"ana","password":"correct horse battery"}`))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
@@ -133,8 +157,37 @@ func TestLoginUsesBcryptAndSetsSecureCookieAttributes(t *testing.T) {
 		t.Fatalf("unexpected cookies: %#v", cookies)
 	}
 }
+
+func TestAdminCreatesApplicationAndSQLUser(t *testing.T) {
+	db := &fakeDB{role: "ADMINISTRADOR", userAbsent: true}
+	s := New(db, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)), "cluster.")
+	body := `{"username":"capturista_1","password":"correct horse battery","full_name":"Capturista Uno","role":"CAPTURISTA","active":true}`
+	rec := request(t, s, http.MethodPost, "/api/users", body, "ADMINISTRADOR")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	wantCalls := []string{"GET sessions/current", "GET auth/user", "POST users/sql_account", "POST users"}
+	if !reflect.DeepEqual(db.calls, wantCalls) {
+		t.Fatalf("calls=%#v", db.calls)
+	}
+	if db.params[2]["db_password"] != "correct horse battery" {
+		t.Fatal("SQL password was not forwarded transiently")
+	}
+	if db.params[2]["db_username"] != "cluster.capturista_1" || db.params[3]["db_username"] != "cluster.capturista_1" {
+		t.Fatalf("TiDB SQL prefix was not persisted consistently: %#v %#v", db.params[2], db.params[3])
+	}
+	if !strings.HasPrefix(asString(db.params[3]["password_hash"]), "$2") {
+		t.Fatal("application password was not bcrypt hashed")
+	}
+	if _, exists := db.params[3]["db_password"]; exists {
+		t.Fatal("plaintext password reached users table endpoint")
+	}
+	if strings.Contains(rec.Body.String(), "correct horse battery") || strings.Contains(rec.Body.String(), "password_hash") {
+		t.Fatal("password leaked in response")
+	}
+}
 func TestOrderValidationRejectsDuplicateItems(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"customer_name":"Luis","customer_phone":"6141234567","idempotency_key":"12345678-1234-1234-1234-123456789abc","items":[{"supplement_id":1,"quantity":1},{"supplement_id":1,"quantity":2}]}`
 	rec := request(t, s, "POST", "/api/orders", body, "")
 	if rec.Code != 422 {
@@ -143,7 +196,7 @@ func TestOrderValidationRejectsDuplicateItems(t *testing.T) {
 }
 
 func TestSupplementValidationRejectsFractionalStock(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1.5,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1]}`
 	rec := request(t, s, "POST", "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != 422 {
@@ -152,7 +205,7 @@ func TestSupplementValidationRejectsFractionalStock(t *testing.T) {
 }
 
 func TestSupplementValidationRejectsDuplicateCategories(t *testing.T) {
-	s := New(&fakeDB{role: "CAPTURISTA"}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{role: "CAPTURISTA"}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	body := `{"name":"Creatina","brand":"Maz","description":"","price":100,"stock":1,"presentation":"Bote","flavor":"","weight":"300 g","image_url":"","active":true,"category_ids":[1,1]}`
 	rec := request(t, s, http.MethodPost, "/api/supplements", body, "CAPTURISTA")
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -160,7 +213,7 @@ func TestSupplementValidationRejectsDuplicateCategories(t *testing.T) {
 	}
 }
 func TestPublicCatalogDoesNotRequireSession(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/catalog", nil))
 	if rec.Code != 200 {
@@ -172,33 +225,21 @@ func TestPublicCatalogDoesNotRequireSession(t *testing.T) {
 	}
 }
 
-func TestBackupReturnsSQLDownload(t *testing.T) {
+func TestBackupCreatesRealCloudExportTask(t *testing.T) {
 	db := &fakeDB{role: "ADMINISTRADOR"}
-	s := New(db, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	exporter := &fakeExporter{tasks: []cloudexport.Task{{ExportID: "exp-real123", State: "PENDING", FileType: "SQL", TargetType: "LOCAL"}}}
+	s := New(db, exporter, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := request(t, s, "POST", "/api/backups", `{}`, "ADMINISTRADOR")
-	if rec.Code != http.StatusOK {
+	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	if contentType := rec.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/sql") {
-		t.Fatalf("Content-Type=%q", contentType)
-	}
-	if disposition := rec.Header().Get("Content-Disposition"); !strings.Contains(disposition, "attachment") || !strings.Contains(disposition, ".sql") {
-		t.Fatalf("Content-Disposition=%q", disposition)
-	}
-	for _, expected := range []string{"CREATE DATABASE IF NOT EXISTS maz_suplementos", "START TRANSACTION", "INSERT INTO `users`", "COMMIT"} {
-		if !strings.Contains(rec.Body.String(), expected) {
-			t.Fatalf("backup missing %q", expected)
-		}
-	}
-	for _, call := range db.calls {
-		if strings.Contains(call, "goal") || strings.Contains(call, "ingredient") {
-			t.Fatalf("backup called removed endpoint: %s", call)
-		}
+	if !strings.Contains(rec.Body.String(), `"export_id":"exp-real123"`) {
+		t.Fatalf("body=%s", rec.Body.String())
 	}
 }
 
 func TestSecurityHeadersOnFrontend(t *testing.T) {
-	s := New(&fakeDB{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, &fakeExporter{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
 	if rec.Header().Get("Content-Security-Policy") == "" || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
@@ -207,7 +248,7 @@ func TestSecurityHeadersOnFrontend(t *testing.T) {
 }
 
 func TestListFiltersAreBounded(t *testing.T) {
-	s := New(&fakeDB{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s := New(&fakeDB{}, &fakeExporter{}, http.NotFoundHandler(), false, time.Hour, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	rec := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/catalog?page_size=10000", nil))
 	if rec.Code != 400 {

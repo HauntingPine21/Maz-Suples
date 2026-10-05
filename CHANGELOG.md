@@ -7,6 +7,8 @@ Todos los cambios relevantes de Maz-Suplementos se documentan en este archivo.
 ### Cambiado
 
 - Se retiraron objetivos, ingredientes y sus relaciones del formulario de productos, API, respaldos, Data Service y esquema TiDB.
+- Se sustituyó la descarga SQL construida por la aplicación por tareas reales de TiDB Cloud Export.
+- La baja lógica de usuarios se conserva y no elimina automáticamente su cuenta SQL.
 
 ### Añadido
 
@@ -15,6 +17,9 @@ Todos los cambios relevantes de Maz-Suplementos se documentan en este archivo.
 - SBOM CycloneDX para Go y npm.
 - Dependabot con enfriamiento de tres días y propiedad de código sensible.
 - Presupuesto comprimido de JavaScript y política de licencias.
+- Sincronización de cada nuevo usuario de aplicación con una cuenta creada mediante `CREATE USER` y registrada en `mysql.user`.
+- Columna `users.db_username`, migración de datos y consulta de exports reales desde el panel administrativo.
+- Prefijo SQL obligatorio de TiDB Cloud configurable mediante `TIDB_SQL_USER_PREFIX`.
 
 ## [1.0.0] - 2026-09-30
 

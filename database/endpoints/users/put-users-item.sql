@@ -4,4 +4,4 @@ START TRANSACTION;
 UPDATE users SET username=${username},full_name=${full_name},role=${role},active=${active},password_hash=IF(${password_hash}='',password_hash,${password_hash}) WHERE id=${id};
 DELETE FROM sessions WHERE user_id=${id} AND ${password_hash}<>'';
 COMMIT;
-SELECT id,username,full_name,role,active,created_at,updated_at FROM users WHERE id=${id};
+SELECT id,username,db_username,full_name,role,active,created_at,updated_at FROM users WHERE id=${id};
