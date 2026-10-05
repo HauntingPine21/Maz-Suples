@@ -21,7 +21,13 @@ func NewHandler() (http.Handler, error) {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	client := tidb.New(cfg.DataServiceBaseURL, cfg.DataAppID, cfg.DataAPIPublicKey, cfg.DataAPIPrivateKey)
-	exporter, err := cloudexport.New(cfg.TiDBClusterID, cfg.TiDBDatabase, cfg.TiDBCloudProfile)
+	exporter, err := cloudexport.NewWithCredentials(
+		cfg.TiDBClusterID,
+		cfg.TiDBDatabase,
+		cfg.TiDBCloudProfile,
+		cfg.TiDBCloudAPIPublicKey,
+		cfg.TiDBCloudAPIPrivateKey,
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -38,38 +41,57 @@ type Exporter interface {
 
 type commandRunner interface {
 	LookPath(string) (string, error)
-	Run(context.Context, string, ...string) ([]byte, error)
+	Run(context.Context, []string, string, ...string) ([]byte, error)
 }
 
 type execRunner struct{}
 
 func (execRunner) LookPath(name string) (string, error) { return exec.LookPath(name) }
-func (execRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+func (execRunner) Run(ctx context.Context, environment []string, name string, args ...string) ([]byte, error) {
+	command := exec.CommandContext(ctx, name, args...)
+	command.Env = append(os.Environ(), environment...)
+	return command.CombinedOutput()
 }
 
 type Service struct {
-	clusterID string
-	database  string
-	profile   string
-	runner    commandRunner
+	clusterID          string
+	database           string
+	profile            string
+	publicKey          string
+	privateKey         string
+	runner             commandRunner
+	commandEnvironment []string
+	profileOnce        sync.Once
+	profileErr         error
 }
 
 func New(clusterID, database, profile string) (*Service, error) {
-	return newService(clusterID, database, profile, execRunner{})
+	return NewWithCredentials(clusterID, database, profile, "", "")
 }
 
-func newService(clusterID, database, profile string, runner commandRunner) (*Service, error) {
+func NewWithCredentials(clusterID, database, profile, publicKey, privateKey string) (*Service, error) {
+	return newService(clusterID, database, profile, publicKey, privateKey, execRunner{})
+}
+
+func newService(clusterID, database, profile, publicKey, privateKey string, runner commandRunner) (*Service, error) {
 	if !regexp.MustCompile(`^[0-9]{1,32}$`).MatchString(clusterID) {
 		return nil, errors.New("TIDB_CLUSTER_ID no es válido")
 	}
 	if !regexp.MustCompile(`^[A-Za-z0-9_]{1,64}$`).MatchString(database) {
 		return nil, errors.New("TIDB_DATABASE no es válido")
 	}
-	if profile != "" && !regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`).MatchString(profile) {
+	if profile != "" && !regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`).MatchString(profile) {
 		return nil, errors.New("TIDB_CLOUD_PROFILE no es válido")
 	}
-	return &Service{clusterID: clusterID, database: database, profile: profile, runner: runner}, nil
+	if (publicKey == "") != (privateKey == "") {
+		return nil, errors.New("las dos credenciales de TiDB Cloud deben configurarse juntas")
+	}
+	service := &Service{clusterID: clusterID, database: database, profile: profile, publicKey: publicKey, privateKey: privateKey, runner: runner}
+	if publicKey != "" {
+		configRoot := filepath.Join(os.TempDir(), "maz-suplementos-ticloud")
+		service.commandEnvironment = []string{"HOME=" + configRoot, "XDG_CONFIG_HOME=" + filepath.Join(configRoot, ".config")}
+	}
+	return service, nil
 }
 
 func (s *Service) Create(ctx context.Context) (Task, error) {
@@ -77,12 +99,15 @@ func (s *Service) Create(ctx context.Context) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
+	if err := s.prepareProfile(ctx, cli); err != nil {
+		return Task{}, err
+	}
 	args := s.profileArgs([]string{"serverless", "export", "create", "-c", s.clusterID,
 		"--target-type", "LOCAL", "--file-type", "SQL", "--compression", "GZIP",
 		"--filter", s.database + ".*", "--force", "--no-color"})
 	commandCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	output, err := s.runner.Run(commandCtx, cli, args...)
+	output, err := s.runner.Run(commandCtx, s.commandEnvironment, cli, args...)
 	if err != nil {
 		return Task{}, fmt.Errorf("%w: verifica el perfil y los permisos de ticloud", ErrCommandFailed)
 	}
@@ -106,10 +131,13 @@ func (s *Service) List(ctx context.Context) ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := s.prepareProfile(ctx, cli); err != nil {
+		return nil, err
+	}
 	args := s.profileArgs([]string{"serverless", "export", "list", "-c", s.clusterID, "-o", "json", "--no-color"})
 	commandCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
-	output, err := s.runner.Run(commandCtx, cli, args...)
+	output, err := s.runner.Run(commandCtx, s.commandEnvironment, cli, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: verifica el perfil y los permisos de ticloud", ErrCommandFailed)
 	}
@@ -155,10 +183,35 @@ func (s *Service) List(ctx context.Context) ([]Task, error) {
 
 func (s *Service) cli() (string, error) {
 	path, err := s.runner.LookPath("ticloud")
+	if err == nil {
+		return path, nil
+	}
+	path, err = embeddedCLIPath()
 	if err != nil {
 		return "", ErrCLIUnavailable
 	}
 	return path, nil
+}
+
+func (s *Service) prepareProfile(ctx context.Context, cli string) error {
+	if s.publicKey == "" {
+		return nil
+	}
+	s.profileOnce.Do(func() {
+		if err := os.MkdirAll(filepath.Join(os.TempDir(), "maz-suplementos-ticloud"), 0o700); err != nil {
+			s.profileErr = fmt.Errorf("%w: no se pudo preparar el perfil", ErrCommandFailed)
+			return
+		}
+		commandCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		_, err := s.runner.Run(commandCtx, s.commandEnvironment, cli,
+			"config", "create", "--profile-name", s.profile,
+			"--public-key", s.publicKey, "--private-key", s.privateKey, "--no-color")
+		if err != nil {
+			s.profileErr = fmt.Errorf("%w: no se pudo autenticar ticloud", ErrCommandFailed)
+		}
+	})
+	return s.profileErr
 }
 
 func (s *Service) profileArgs(args []string) []string {

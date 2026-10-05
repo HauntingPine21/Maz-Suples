@@ -55,3 +55,16 @@ func TestProductionRequiresSecureCookie(t *testing.T) {
 		t.Fatal("expected insecure production cookie to be rejected")
 	}
 }
+
+func TestLoadRejectsIncompleteCloudAPICredentials(t *testing.T) {
+	setExportEnv(t)
+	t.Setenv("TIDB_DATA_SERVICE_BASE_URL", "https://us-east-1.data.tidbcloud.com")
+	t.Setenv("TIDB_DATA_APP_ID", "app")
+	t.Setenv("TIDB_DATA_API_PUBLIC_KEY", "public")
+	t.Setenv("TIDB_DATA_API_PRIVATE_KEY", "private")
+	t.Setenv("TIDB_CLOUD_API_PUBLIC_KEY", "cloud-public")
+	t.Setenv("TIDB_CLOUD_API_PRIVATE_KEY", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected incomplete TiDB Cloud API credentials to be rejected")
+	}
+}

@@ -48,6 +48,7 @@ Variables necesarias:
 - `TIDB_CLUSTER_ID`: identificador numérico del clúster que muestra TiDB Cloud.
 - `TIDB_DATABASE`: base incluida en el export (por defecto `maz_suplementos`).
 - `TIDB_CLOUD_PROFILE`: perfil autenticado de TiDB Cloud CLI (por defecto `default`).
+- `TIDB_CLOUD_API_PUBLIC_KEY` y `TIDB_CLOUD_API_PRIVATE_KEY`: API key de TiDB Cloud para autenticar la CLI en Vercel. Son secretos del backend y deben configurarse juntas; en desarrollo local pueden omitirse si el perfil ya fue autenticado.
 - `TIDB_SQL_USER_PREFIX`: prefijo obligatorio de usuarios SQL mostrado por TiDB Cloud, incluido el punto final (por ejemplo `abc123.`).
 - `COOKIE_SECURE=true` en HTTPS; en localhost HTTP se conserva `false`.
 - `APP_PORT`, `APP_ENV`, `SESSION_TTL_HOURS` son configurables.
@@ -110,7 +111,15 @@ ticloud -P <perfil> serverless export create -c <cluster> --target-type LOCAL --
 
 `GET /api/backups` obtiene la lista real con `ticloud serverless export list`; no utiliza registros simulados ni una tabla local. El Export ID, estado, fecha, formato y destino proceden de TiDB Cloud y la misma tarea aparece en **Data > Export**. El destino `LOCAL` de TiDB Cloud conserva temporalmente el archivo para descarga desde su panel.
 
-El proceso del servidor necesita el binario `ticloud` en `PATH` y acceso al perfil indicado. Una función estándar de Vercel no incluye automáticamente ese binario ni el perfil del equipo local: para activar respaldos allí se debe provisionar ambos en el runtime o ejecutar el backend Go en un host persistente. Si faltan, la API responde `TIDB_CLI_UNAVAILABLE` en vez de simular éxito.
+En desarrollo, el proceso usa primero el binario `ticloud` de `PATH` y el perfil local indicado. Para Vercel, el backend incluye la distribución oficial Linux amd64 de `ticloud` 1.0.0-beta.11, verificada por SHA-256, la extrae al directorio temporal de la función y crea un perfil efímero usando `TIDB_CLOUD_API_PUBLIC_KEY` y `TIDB_CLOUD_API_PRIVATE_KEY`. Las claves se guardan solamente como secretos de Vercel: no se incorporan al binario, al frontend ni al repositorio. Si la CLI o las credenciales no están disponibles, la API responde con un error explícito en vez de simular el respaldo.
+
+Para comprobar un respaldo, copia el `export_id` devuelto por `POST /api/backups` y ejecuta:
+
+```bash
+ticloud -P default serverless export list -c "$TIDB_CLUSTER_ID" -o json
+```
+
+El mismo identificador debe aparecer en **TiDB Cloud > Data > Export**. Los exports `LOCAL` se descargan desde TiDB Cloud cuando su estado real sea completado.
 
 ## Usuarios de aplicación y cuentas SQL
 
