@@ -32,11 +32,11 @@ jobs:
       - name: Lint
         run: make lint
       - name: Unit tests, race detector and coverage
-        run: go test -race -coverprofile=coverage.out ./api ./app ./cmd/... ./database ./internal/...
+        run: go test -race -coverprofile=coverage.out ./api ./app ./cmd/... ./database/... ./internal/...
       - name: Coverage gate
         run: npm run check:coverage
       - name: Build
-        run: go build ./api ./app ./cmd/... ./database ./internal/...
+        run: go build ./api ./app ./cmd/... ./database/... ./internal/...
       - name: Web performance budget
         run: npm run check:size
       - name: License policy
@@ -72,6 +72,8 @@ jobs:
           TIDB_DATA_APP_ID: ci-test
           TIDB_DATA_API_PUBLIC_KEY: ci-test
           TIDB_DATA_API_PRIVATE_KEY: ci-test
+          TIDB_CLUSTER_ID: "123456"
+          TIDB_SQL_USER_PREFIX: ci.
         run: |
           go run ./cmd/server > /tmp/maz-suplementos.log 2>&1 &
           for attempt in $(seq 1 30); do
